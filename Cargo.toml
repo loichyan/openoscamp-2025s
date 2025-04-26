@@ -1,0 +1,16 @@
+[workspace]
+members = ["kernel"]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.0"
+authors = ["Loi Chyan <loichyan@foxmail.com>"]
+license = "MIT"
+edition = "2024"
+
+# Enable some optimizations in binary crate
+[profile.release]
+codegen-units = 1
+debug = true
+lto = true
+strip = true
