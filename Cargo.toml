@@ -11,6 +11,5 @@ edition = "2024"
 # Enable some optimizations in binary crate
 [profile.release]
 codegen-units = 1
-debug = true
 lto = true
 strip = true

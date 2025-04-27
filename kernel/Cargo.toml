@@ -6,3 +6,5 @@ license.workspace = true
 edition.workspace = true
 
 [dependencies]
+bitflags = "2.9.0"
+sbi-rt = "0.0.3"
