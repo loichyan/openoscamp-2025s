@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(debug_closure_helpers)]
+#![feature(fn_align)]
 #![feature(sync_unsafe_cell)]
 
 use self::sbi::shutdown;
@@ -15,24 +16,28 @@ mod config;
 mod logging;
 mod mm;
 mod sbi;
+mod trap;
 
 #[panic_handler]
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
     if let Some(loc) = info.location() {
         console::print_silent(format_args!(
-            "[kernel] panicked at {}:{} {}",
+            "[kernel] panicked at {}:{}: {}\n",
             loc.file(),
             loc.line(),
             info.message()
         ));
     } else {
-        console::print_silent(format_args!("[kernel] panicked: {}", info.message()));
+        console::print_silent(format_args!("[kernel] panicked: {}\n", info.message()));
     }
     sbi::shutdown(1);
 }
 
 fn main() -> ! {
-    unsafe { logging::init() };
+    unsafe {
+        logging::init();
+        trap::init();
+    }
     show_segments();
     println!("Hello, world!");
 
