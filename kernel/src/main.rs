@@ -1,13 +1,16 @@
 #![no_std]
 #![no_main]
+#![feature(debug_closure_helpers)]
 #![feature(sync_unsafe_cell)]
 
 use self::sbi::shutdown;
+use log::info;
 
 #[macro_use]
 mod console;
 mod boot;
 mod config;
+mod logging;
 mod mm;
 mod sbi;
 
@@ -27,6 +30,15 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 }
 
 fn main() -> ! {
+    unsafe { logging::init() };
+    show_segments();
+    println!("Hello, world!");
+
+    shutdown(0);
+}
+
+// TODO: create a more safe kernel page table
+fn show_segments() {
     unsafe extern "C" {
         fn stext();
         fn etext();
@@ -37,24 +49,8 @@ fn main() -> ! {
         fn sbss();
         fn ebss();
     }
-    println!(
-        "[kernel] .text   [{:#x}, {:#x})",
-        stext as usize, etext as usize
-    );
-    println!(
-        "[kernel] .rodata [{:#x}, {:#x})",
-        srodata as usize, erodata as usize
-    );
-    println!(
-        "[kernel] .data   [{:#x}, {:#x})",
-        sdata as usize, edata as usize
-    );
-    println!(
-        "[kernel] .bss    [{:#x}, {:#x})",
-        sbss as usize, ebss as usize
-    );
-
-    println!("Hello, world!");
-
-    shutdown(0);
+    info!(".text   [{:#x}, {:#x})", stext as usize, etext as usize);
+    info!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
+    info!(".data   [{:#x}, {:#x})", sdata as usize, edata as usize);
+    info!(".bss    [{:#x}, {:#x})", sbss as usize, ebss as usize);
 }
