@@ -42,7 +42,32 @@ fn main() -> ! {
     show_segments();
     println!("Hello, world!");
 
+    test_user_trap();
+
     shutdown(0);
+}
+
+fn test_user_trap() {
+    static mut USER_STACK: [u8; 4096] = [0; 4096];
+
+    let mut sstatus = riscv::register::sstatus::read();
+    sstatus.set_spp(riscv::register::sstatus::SPP::Supervisor);
+
+    let mut cx = trap::TrapContext {
+        sstatus: sstatus.bits(),
+        sepc: user_app as usize,
+        ..Default::default()
+    };
+    cx.set_sp(&raw mut USER_STACK as usize + 4096);
+
+    cx.call();
+}
+
+extern "C" fn user_app() {
+    println!("[user] Hello, kernel!");
+    unsafe {
+        core::ptr::read_volatile(0x1000 as *const usize);
+    }
 }
 
 // TODO: create a more safe kernel page table

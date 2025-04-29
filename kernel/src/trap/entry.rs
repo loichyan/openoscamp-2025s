@@ -1,7 +1,7 @@
 use super::*;
 use core::arch::naked_asm;
 
-macro_rules! load_or_save_xn {
+macro_rules! load_or_save_all {
     ($op:literal) => { concat_instructions!(
         //    x0,  0*8(sp)   # zero, no need to save/load
         $op " x1,  1*8(sp)";
@@ -38,6 +38,24 @@ macro_rules! load_or_save_xn {
     ) };
 }
 
+macro_rules! load_or_save_callee {
+    ($op:literal) => { concat_instructions!(
+        $op " ra,  0*8(sp)";
+        $op " s0,  1*8(sp)";
+        $op " s1,  2*8(sp)";
+        $op " s2,  3*8(sp)";
+        $op " s3,  4*8(sp)";
+        $op " s4,  5*8(sp)";
+        $op " s5,  6*8(sp)";
+        $op " s6,  7*8(sp)";
+        $op " s7,  8*8(sp)";
+        $op " s8,  9*8(sp)";
+        $op " s9, 10*8(sp)";
+        $op "s10, 11*8(sp)";
+        $op "s11, 12*8(sp)";
+    ) };
+}
+
 macro_rules! save_csr {
     () => {
         // Zero %sscratch so that we can identify traps from the kernel
@@ -67,9 +85,9 @@ macro_rules! load_csr {
 #[unsafe(naked)]
 pub unsafe extern "C" fn trap_entry() {
     naked_asm!(
-        // Push the trap frame:
-        // * For kernel traps, we store the frame on the kernel stack.
-        // * For user traps, the frame is allocated on the kernel heap.
+        // Save the trap context:
+        // * For kernel traps, we push the context on the kernel stack.
+        // * For user traps, the context is allocated on the kernel heap.
         "
         csrrw sp, sscratch, sp
         bnez  sp, {trap_from_user}
@@ -86,34 +104,64 @@ unsafe extern "C" fn trap_from_kernel() {
     // Handle the kernel trap and return to where the exception occurred.
     naked_asm!(
         "
-        addi sp, sp, -{trap_frame_size}
+        addi sp, sp, -{context_size}
         ",
-        load_or_save_xn!("sd"),
+        load_or_save_all!("sd"),
         save_csr!(),
         "
         mv   a0, sp
         call {trap_handler}
         ",
         load_csr!(),
-        load_or_save_xn!("ld"),
+        load_or_save_all!("ld"),
         "
-        addi sp, sp, {trap_frame_size}
+        addi sp, sp, {context_size}
         sret
         ",
-        trap_frame_size = const core::mem::size_of::<TrapFrame>(),
-        trap_handler    = sym   super::kernel_trap_handler,
+        context_size = const core::mem::size_of::<TrapContext>(),
+        trap_handler = sym   super::kernel_trap_handler,
     );
 }
 
 #[unsafe(naked)]
 unsafe extern "C" fn trap_from_user() {
-    // Return to the caller of this task and it will handle the trap.
     naked_asm!(
-        load_or_save_xn!("sd"),
+        load_or_save_all!("sd"),
         save_csr!(),
+        // Load kernel's stack
         "
-        ld ra, (sp)
+        ld sp, (sp)
+        ",
+        // Load previously saved registers
+        load_or_save_callee!("ld"),
+        // Return to the caller of this task
+        "
+        addi sp, sp, 13*8
         ret
+        ",
+    );
+}
+
+#[unsafe(naked)]
+pub unsafe extern "C" fn trap_return_to_user(cx: &mut TrapContext) {
+    naked_asm!(
+        // Save caller-saved registers
+        "
+        addi sp, sp, -13*8
+        ",
+        load_or_save_callee!("sd"),
+        // Load user's execution context
+        "
+        csrw sscratch, a0
+        sd   sp, (a0)  # Save kernel's stack
+        mv   sp,  a0
+        ",
+        load_csr!(),
+        load_or_save_all!("ld"),
+        // Return to user mode
+        "
+        ld sp, 2*8(sp) # Load user's stack
+        sret
         ",
     );
 }
