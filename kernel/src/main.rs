@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(debug_closure_helpers)]
 #![feature(fn_align)]
+#![feature(format_args_nl)]
 #![feature(sync_unsafe_cell)]
 
 use self::sbi::shutdown;
