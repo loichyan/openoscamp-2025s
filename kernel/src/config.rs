@@ -14,5 +14,5 @@ pub const PADDR_START: usize = 0x8000_0000;
 /// End of the physical memory region (8MB in total).
 pub const PADDR_END: usize = 0x8080_0000;
 
-pub const KERNEL_STACK_SIZE: usize = 4096 * 2; // 8KB
+pub const KERNEL_BOOT_STACK_SIZE: usize = 4096 * 2; // TODO: use stack only in booting
 pub const USER_STACK_SIZE: usize = 4096 * 2; // 8KB

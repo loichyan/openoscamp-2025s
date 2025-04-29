@@ -7,6 +7,8 @@ use self::sbi::shutdown;
 use log::info;
 
 #[macro_use]
+mod utils;
+#[macro_use]
 mod console;
 mod boot;
 mod config;
