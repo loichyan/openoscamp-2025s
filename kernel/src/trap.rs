@@ -1,17 +1,6 @@
 mod entry;
 
-use crate::config::*;
 use riscv::register::{scause, stval};
-
-#[repr(transparent)]
-struct KernelStack {
-    data: [u8; KERNEL_STACK_SIZE],
-}
-
-#[repr(transparent)]
-struct UserStack {
-    data: [u8; USER_STACK_SIZE],
-}
 
 #[derive(Debug, Default)]
 #[repr(C)]
