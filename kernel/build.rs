@@ -1,4 +1,4 @@
 fn main() {
-    println!("cargo::rerun-if-changed=scripts/kernel.ld");
-    println!("cargo::rustc-link-arg=-Tscripts/kernel.ld");
+    println!("cargo::rerun-if-changed=kernel/linker.ld");
+    println!("cargo::rustc-link-arg=-Tkernel/linker.ld");
 }

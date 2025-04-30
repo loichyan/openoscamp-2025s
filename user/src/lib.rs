@@ -1,35 +1,45 @@
 #![no_std]
+#![feature(linkage)]
 
-pub mod syscall {
-    use common::syscall::*;
+#[macro_use]
+pub mod console;
+pub mod syscall;
 
-    /// # Safety
-    ///
-    /// The caller must follow the specified syscall convention.
-    pub unsafe fn syscall(id: usize, args: [usize; 3]) -> isize {
-        let ret: isize;
-        unsafe {
-            core::arch::asm!(
-                "ecall",
-                inlateout("a0") args[0] => ret,
-                in("a1")        args[1],
-                in("a2")        args[2],
-                in("a7")        id,
-            );
-        }
-        ret
-    }
-
-    pub fn sys_yield() -> isize {
-        unsafe { syscall(SYS_YIELD, [0; 3]) }
-    }
-
-    pub fn sys_exit(code: i32) -> isize {
-        unsafe { syscall(SYS_EXIT, [code as usize, 0, 0]) }
-    }
-
-    pub fn sys_write(fd: usize, bytes: &[u8]) -> isize {
-        unsafe { syscall(SYS_EXIT, [fd, bytes.as_ptr() as usize, bytes.len()]) }
-    }
-}
 pub use syscall::*;
+
+#[panic_handler]
+fn panic_handler(info: &core::panic::PanicInfo) -> ! {
+    if let Some(loc) = info.location() {
+        console::print_silent(format_args!(
+            "[kernel] panicked at {}:{}: {}\n",
+            loc.file(),
+            loc.line(),
+            info.message()
+        ));
+    } else {
+        console::print_silent(format_args!("[kernel] panicked: {}\n", info.message()));
+    }
+    syscall::sys_exit(-1);
+}
+
+#[unsafe(link_section = ".text.entry")]
+#[unsafe(no_mangle)]
+unsafe extern "C" fn _start() -> ! {
+    unsafe extern "C" {
+        fn sbss();
+        fn ebss();
+    }
+    // Clear the .bss segment
+    unsafe {
+        let sbss = sbss as usize;
+        let ebss = ebss as usize;
+        core::slice::from_raw_parts_mut::<u8>(sbss as *mut u8, ebss - sbss).fill(0);
+    }
+    syscall::sys_exit(main());
+}
+
+#[linkage = "weak"]
+#[unsafe(no_mangle)]
+fn main() -> i32 {
+    panic!("main() is not implemented");
+}
