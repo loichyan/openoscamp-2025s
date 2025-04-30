@@ -7,6 +7,7 @@
 
 use self::sbi::shutdown;
 use log::info;
+use riscv::register::stval;
 
 #[macro_use]
 mod utils;
@@ -17,6 +18,8 @@ mod config;
 mod logging;
 mod mm;
 mod sbi;
+mod syscall;
+mod task;
 mod trap;
 
 #[panic_handler]
@@ -48,21 +51,24 @@ fn main() -> ! {
 }
 
 fn test_user_trap() {
+    use riscv::register::scause::{Exception, Trap};
+
     static mut USER_STACK: [u8; 4096] = [0; 4096];
 
-    let mut sstatus = riscv::register::sstatus::read();
-    sstatus.set_spp(riscv::register::sstatus::SPP::Supervisor);
-
-    let mut cx = trap::TrapContext {
-        sstatus: sstatus.bits(),
-        sepc: user_app as usize,
-        ..Default::default()
-    };
-    cx.set_sp(&raw mut USER_STACK as usize + 4096);
-
-    cx.call();
+    let mut task = task::Task::new(user_app as usize, &raw mut USER_STACK as usize + 4096);
+    loop {
+        match task.cx.call().cause() {
+            Trap::Exception(Exception::UserEnvCall) => syscall::handle(&mut task),
+            other => panic!("unsupported exception: {other:?} {}", stval::read()),
+        }
+        if task.state == task::TaskState::Exited {
+            info!("user exited");
+            break;
+        }
+    }
 }
 
+/// This is not an actual userland app. Instead, it is used to test user traps.
 extern "C" fn user_app() {
     println!("[user] Hello, kernel!");
     unsafe {

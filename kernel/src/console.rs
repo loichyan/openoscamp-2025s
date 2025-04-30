@@ -5,13 +5,17 @@ struct Stdout;
 
 impl Write for Stdout {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        for c in s.bytes() {
-            sbi_rt::console_write_byte(c)
-                .into_result()
-                .map_err(|_| fmt::Error)?;
-        }
-        Ok(())
+        write_bytes(s.as_bytes())
     }
+}
+
+pub fn write_bytes(bytes: &[u8]) -> fmt::Result {
+    for c in bytes.iter().copied() {
+        sbi_rt::console_write_byte(c)
+            .into_result()
+            .map_err(|_| fmt::Error)?;
+    }
+    Ok(())
 }
 
 pub fn print_silent(args: fmt::Arguments) {

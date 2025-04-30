@@ -7,6 +7,9 @@ edition.workspace = true
 
 [dependencies]
 bitflags = "2.9.0"
+common.workspace = true
 log = "0.4.27"
-riscv = { git = "https://github.com/rcore-os/riscv", version = "0.6.0", features = ["inline-asm"] }
+riscv = { git = "https://github.com/rcore-os/riscv", version = "0.6.0", features = [
+    "inline-asm",
+] }
 sbi-rt = "0.0.3"
