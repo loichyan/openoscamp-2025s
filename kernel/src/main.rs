@@ -10,6 +10,8 @@ use log::info;
 use riscv::register::stval;
 
 #[macro_use]
+mod utils;
+#[macro_use]
 mod console;
 mod asm;
 mod boot;
@@ -58,7 +60,11 @@ fn test_user_trap() {
     loop {
         match task.cx.call().cause() {
             Trap::Exception(Exception::UserEnvCall) => syscall::handle(&mut task),
-            other => panic!("unsupported exception: {other:?} {}", stval::read()),
+            other => panic!(
+                "unsupported exception: {other:x?} {:#x}\n{:#x?}",
+                stval::read(),
+                task.cx,
+            ),
         }
         if task.state == task::TaskState::Exited {
             info!("user exited");

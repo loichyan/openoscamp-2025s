@@ -1,102 +1,125 @@
 use super::*;
 use crate::asm::*;
 use core::arch::naked_asm;
+use core::mem::{offset_of, size_of};
+
+macro_rules! offset_of_context {
+    ($($f:tt)*) => { (offset_of!(TrapContext, $($f)*) / size_of::<usize>()) };
+}
 
 #[rustfmt::skip]
-macro_rules! __load_or_save_context {
-    ($op:ident) => {
+macro_rules! caller_regs {
+    ($op:ident, $r:ident[$i:tt]) => {
         concat_asm!(
-            // %x0, no need to save/load
-            $op!(x1,  sp[1]),
-            // %sp, load/save it later
-            // %gp, not used
-            // %tp, not used
-            $op!(x5,  sp[5]),
-            $op!(x6,  sp[6]),
-            $op!(x7,  sp[7]),
-            $op!(x8,  sp[8]),
-            $op!(x9,  sp[9]),
-            $op!(x10, sp[10]),
-            $op!(x11, sp[11]),
-            $op!(x12, sp[12]),
-            $op!(x13, sp[13]),
-            $op!(x14, sp[14]),
-            $op!(x15, sp[15]),
-            $op!(x16, sp[16]),
-            $op!(x17, sp[17]),
-            $op!(x18, sp[18]),
-            $op!(x19, sp[19]),
-            $op!(x20, sp[20]),
-            $op!(x21, sp[21]),
-            $op!(x22, sp[22]),
-            $op!(x23, sp[23]),
-            $op!(x24, sp[24]),
-            $op!(x25, sp[25]),
-            $op!(x26, sp[26]),
-            $op!(x27, sp[27]),
-            $op!(x28, sp[28]),
-            $op!(x29, sp[29]),
-            $op!(x30, sp[30]),
-            $op!(x31, sp[31]),
+            $op!(ra, $r[$i+0]),
+
+            $op!(a0, $r[$i+1]),
+            $op!(a1, $r[$i+2]),
+            $op!(a2, $r[$i+3]),
+            $op!(a3, $r[$i+4]),
+            $op!(a4, $r[$i+5]),
+            $op!(a5, $r[$i+6]),
+            $op!(a6, $r[$i+7]),
+            $op!(a7, $r[$i+8]),
+
+            $op!(t0, $r[$i+9]),
+            $op!(t1, $r[$i+10]),
+            $op!(t2, $r[$i+11]),
+            $op!(t3, $r[$i+12]),
+            $op!(t4, $r[$i+13]),
+            $op!(t5, $r[$i+14]),
+            $op!(t6, $r[$i+15]),
         )
     };
 }
 
 #[rustfmt::skip]
-macro_rules! __load_or_save_callee {
-    ($op:ident) => {
+macro_rules! callee_regs {
+    ($op:ident, $r:ident[$i:tt]) => {
         concat_asm!(
-            $op!(ra,  sp[0]),
-            $op!(s0,  sp[1]),
-            $op!(s1,  sp[2]),
-            $op!(s2,  sp[3]),
-            $op!(s3,  sp[4]),
-            $op!(s4,  sp[5]),
-            $op!(s5,  sp[6]),
-            $op!(s6,  sp[7]),
-            $op!(s7,  sp[8]),
-            $op!(s8,  sp[9]),
-            $op!(s9,  sp[10]),
-            $op!(s10, sp[11]),
-            $op!(s11, sp[12]),
+            $op!(s0,  $r[$i+0]),
+            $op!(s1,  $r[$i+1]),
+            $op!(s2,  $r[$i+2]),
+            $op!(s3,  $r[$i+3]),
+            $op!(s4,  $r[$i+4]),
+            $op!(s5,  $r[$i+5]),
+            $op!(s6,  $r[$i+6]),
+            $op!(s7,  $r[$i+7]),
+            $op!(s8,  $r[$i+8]),
+            $op!(s9,  $r[$i+9]),
+            $op!(s10, $r[$i+10]),
+            $op!(s11, $r[$i+11]),
         )
     };
 }
 
-macro_rules! save_context {
-    () => {
+#[rustfmt::skip]
+macro_rules! csr_regs {
+    (save, $r:ident[$i:tt]) => {
         concat_asm!(
-            __load_or_save_context!(save),
-            "csrrw t0, sscratch, zero",
-            "csrr t1, sstatus",
-            "csrr t2, sepc",
-            save!(t0, sp[2]),
-            save!(t1, sp[32]),
-            save!(t2, sp[33]),
+            "csrr t0, sstatus",
+            "csrr t1, sepc",
+            save!(t0, $r[$i+0]),
+            save!(t1, $r[$i+1]),
         )
     };
-}
-macro_rules! load_context {
-    () => {
+    (load, $r:ident[$i:tt]) => {
         concat_asm!(
-            load!(t0, sp[32]),
-            load!(t1, sp[33]),
+            load!(t0, $r[$i+0]),
+            load!(t1, $r[$i+1]),
             "csrw sstatus, t0",
             "csrw sepc,    t1",
-            __load_or_save_context!(load),
         )
     };
 }
 
-macro_rules! load_callee {
-    () => {
-        __load_or_save_callee!(load)
+macro_rules! trap_context {
+    (save, $r:ident) => {
+        concat_asm!(
+            caller_regs!(save, $r[offset_caller]),
+            callee_regs!(save, $r[offset_callee]),
+            csr_regs!(save, $r[offset_csr]),
+            save!(sp, $r[offset_sp]),
+        )
+    };
+    (load, $r:ident) => {
+        concat_asm!(
+            csr_regs!(load, $r[offset_csr]),
+            caller_regs!(load, $r[offset_caller]),
+            callee_regs!(load, $r[offset_callee]),
+            load!(sp, $r[offset_sp]),
+        )
     };
 }
-macro_rules! save_callee {
-    () => {
-        __load_or_save_callee!(save)
-    };
+
+macro_rules! trap_asm {
+    ($($args:tt)*) => {
+        naked_asm!(
+            // Pretend all named arguments are used
+            "
+            // {size_context}
+            // {size_caller}
+            // {size_callee_1}
+            // {offset_sp}
+            // {offset_ksp}
+            // {offset_csr}
+            // {offset_caller}
+            // {offset_callee}
+            ",
+
+            $($args)*
+
+            size_context  = const size_of::<TrapContext>(),
+            size_caller   = const size_of::<CallerRegs>(),
+            size_callee_1 = const size_of::<CalleeRegs>() + size_of::<usize>(),
+            offset_caller = const offset_of_context!(caller),
+            offset_callee = const offset_of_context!(callee),
+            offset_csr    = const offset_of_context!(csr),
+            offset_sp     = const offset_of_context!(sp),
+            offset_ksp    = const offset_of_context!(ksp),
+
+        )
+    }
 }
 
 #[repr(align(2))] // Required by RISC-V Specification
@@ -110,6 +133,7 @@ pub unsafe extern "C" fn trap_entry() {
         "bnez sp, {trap_from_user}",
         "csrr sp, sscratch",
         "j {trap_from_kernel}",
+
         trap_from_kernel = sym trap_from_kernel,
         trap_from_user   = sym trap_from_user,
     );
@@ -117,50 +141,52 @@ pub unsafe extern "C" fn trap_entry() {
 
 #[unsafe(naked)]
 unsafe extern "C" fn trap_from_kernel() {
-    // Handle the kernel trap and return to where the exception occurred.
-    naked_asm!(
-        "addi sp, sp, -{context_size}",
-        save_context!(),
-        "mv a0, sp",
+    trap_asm!(
+        // 1) Save kernel's execution context
+        "addi sp, sp, -{size_context}",
+        trap_context!(save, sp),
+        // 2) Call the trap handler
         "call {trap_handler}",
-        load_context!(),
-        "addi sp, sp, {context_size}",
+        // 3) Load kernel's execution context
+        trap_context!(load, sp),
+        "addi sp, sp, {size_context}",
+        // 4) Return to where the exception occurred
         "sret",
-        context_size = const size_of::<TrapContext>(),
-        trap_handler = sym   super::kernel_trap_handler,
+
+        trap_handler = sym super::kernel_trap_handler,
     );
 }
 
 #[unsafe(naked)]
 unsafe extern "C" fn trap_from_user() {
-    naked_asm!(
-        // Save user's execution context
-        save_context!(),
-        // Load kernel's stack
-        load!(sp, sp[0]),
-        // Load previously saved registers
-        load_callee!(),
+    trap_asm!(
+        // 1) Save user's execution context
+        trap_context!(save, sp),
+        // 2) Load kernel's stack
+        load!(sp, sp[offset_ksp]),
+        // 3) Load previously saved registers
+        load!(ra, sp[0]),          // %sp[0]    : %ra
+        callee_regs!(load, sp[1]), // %sp[1..12]: %s0..%s11
+        "addi sp, sp, {size_callee_1}",
         // Return to the caller of this task
-        "addi sp, sp, {callee_context_size}",
         "ret",
-        callee_context_size = const size_of::<[usize; 13]>(),
     );
 }
 
 #[unsafe(naked)]
 pub unsafe extern "C" fn trap_return_to_user(cx: &mut TrapContext) {
-    naked_asm!(
-        // Save caller-saved registers
-        "addi sp, sp, -{callee_context_size}",
-        save_callee!(),
-        // Load user's execution context
+    trap_asm!(
+        // 1) Save caller-saved registers
+        "addi sp, sp, -{size_callee_1}",
+        save!(ra, sp[0]),          // %sp[0]    : %ra
+        callee_regs!(save, sp[1]), // %sp[1..12]: %s0..%s11
+        // 2) Save kernel's stack and context pointer
         "csrw sscratch, a0",
-        save!(sp, a0[0]), // Save kernel's stack
+        save!(sp, a0[offset_ksp]),
         "mv sp, a0",
-        load_context!(),
+        // 3) Load user's execution context
+        trap_context!(load, sp),
         // Return to user mode
-        load!(sp, sp[2]), // Load user's stack
         "sret",
-        callee_context_size = const size_of::<[usize; 13]>(),
     );
 }

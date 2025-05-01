@@ -3,13 +3,13 @@ macro_rules! concat_asm {
 }
 
 macro_rules! load {
-    ($rd:ident, $rs:ident[$i:literal]) => {
+    ($rd:ident, $rs:ident[$($i:tt)*]) => {
         concat!(
             "ld ",
             stringify!($rd),
-            ", ",
-            $i,
-            "*8(",
+            ", (",
+            $(__asm_index!($i),)*
+            ")*8(",
             stringify!($rs),
             ")",
         )
@@ -17,13 +17,13 @@ macro_rules! load {
 }
 
 macro_rules! save {
-    ($rd:ident, $rs:ident[$i:literal]) => {
+    ($rd:ident, $rs:ident[$($i:tt)*]) => {
         concat!(
             "sd ",
             stringify!($rd),
-            ", ",
-            $i,
-            "*8(",
+            ", (",
+            $(__asm_index!($i),)*
+            ")*8(",
             stringify!($rs),
             ")",
         )
