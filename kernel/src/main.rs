@@ -58,11 +58,14 @@ fn test_user_trap() {
     loop {
         match task.cx.call().cause() {
             Trap::Exception(Exception::UserEnvCall) => syscall::handle(&mut task),
-            other => panic!(
-                "unsupported exception: {other:x?} {:#x}\n{:#x?}",
-                stval::read(),
-                task.cx,
-            ),
+            other => {
+                println!(
+                    "[SCHEDULER] unsupported exception: {other:x?} {:#x}\n{:#x?}",
+                    stval::read(),
+                    task.cx,
+                );
+                break;
+            },
         }
         if task.state == task::TaskState::Exited {
             info!("user exited");
@@ -75,8 +78,28 @@ fn test_user_trap() {
 extern "C" fn user_app() {
     println!("[user] Hello, kernel!");
     unsafe {
-        core::ptr::read_volatile(0x1000 as *const usize);
+        core::arch::asm!(
+            "addi sp, sp, -8",
+            "sd t0, (sp)",
+
+            "li t0, 0x1000",
+            "ld t0, (t0)",
+
+            "call {just_print}",
+
+            "li t0, 0x1000",
+            "sd t0, (t0)",
+
+            "ld t0, (sp)",
+            "addi sp, sp, 8",
+            just_print = sym just_print,
+        );
     }
+    unreachable!();
+}
+
+extern "C" fn just_print() {
+    println!("TRAP RETURNED!!");
 }
 
 // TODO: create a more safe kernel page table

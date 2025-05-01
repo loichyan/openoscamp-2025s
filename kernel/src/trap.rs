@@ -8,19 +8,14 @@ pub struct TrapContext {
     caller: CallerRegs,
     callee: CalleeRegs,
     csr: CsrRegs,
-    /// User's stack pointer
     sp: usize,
-    /// Kernel's stack pointer
-    ksp: usize,
+    ksp: usize, // kernel's stack pointer
 }
 
 #[derive(Debug, Default)]
 #[repr(C)]
 struct CallerRegs {
-    sp: usize,
-    ra: usize,
-
-    a0: usize,
+    a0: usize, // %a0 must be the first field
     a1: usize,
     a2: usize,
     a3: usize,
@@ -36,12 +31,14 @@ struct CallerRegs {
     t4: usize,
     t5: usize,
     t6: usize,
+
+    ra: usize,
 }
 
 #[derive(Debug, Default)]
 #[repr(C)]
 struct CalleeRegs {
-    s0: usize,
+    s0: usize, // %s0 must be the first field
     s1: usize,
     s2: usize,
     s3: usize,
@@ -81,7 +78,7 @@ impl TrapContext {
     }
 
     pub fn call(&mut self) -> scause::Scause {
-        unsafe { entry::trap_return_to_user(self) };
+        unsafe { entry::return_to_user(self) };
         scause::read()
     }
 }
@@ -100,6 +97,12 @@ impl TrapContext {
     pub const fn set_ret1(&mut self, val: usize) { self.caller.a1 = val; }
 }
 
+#[repr(usize)]
+enum HandleResult {
+    Return = 0,
+    Continue = 1,
+}
+
 pub unsafe fn init() {
     unsafe {
         riscv::register::stvec::write(
@@ -109,9 +112,27 @@ pub unsafe fn init() {
     }
 }
 
-extern "C" fn kernel_trap_handler() {
+extern "C" fn kernel_handler() {
     let cause = scause::read().cause();
     let stval = stval::read();
     // TODO: handle kernel traps
     panic!("trap from kernel: {cause:x?} {stval:#x}");
+}
+
+extern "C" fn user_fast_handler(cx: &mut TrapContext) -> HandleResult {
+    let cause = scause::read().cause();
+    let stval = stval::read();
+    // NOTE: the sole intention of these codes is to test user traps
+    {
+        if cause == scause::Trap::Exception(scause::Exception::LoadPageFault) {
+            println!("[TRAP] ignore trap from user: {cause:x?} {stval:#x}");
+            println!("{cx:#x?}");
+            println!("[TRAP] jump to the next instruction");
+            cx.csr.sepc += 4;
+            HandleResult::Return
+        } else {
+            println!("[TRAP] another trap from user, delegate to the scheduler");
+            HandleResult::Continue
+        }
+    }
 }
