@@ -1,3 +1,4 @@
+use crate::asm::*;
 use crate::config::*;
 use crate::mm::{PageLocation, PageTableEntry, PteFlags, RawPageTable};
 use core::arch::naked_asm;
@@ -19,14 +20,15 @@ unsafe extern "C" fn _start() -> ! {
         .union(PteFlags::W)
         .union(PteFlags::X);
 
+    /// `BOOT_PAGE_TABLE[$i] = $v`
     macro_rules! set_kpgtbl {
-        ($i:literal, $v:literal) => {
-            concat_instructions!(
-                "lla t0, {kpgtbl}";
-                "li  t1," $i "*{pte_size}"; // Convert to byte index
-                "add t0, t0, t1";
-                "li  t1," $v;
-                "sd  t1, (t0)";
+        ($i:ident, $v:ident) => {
+            concat_asm!(
+                "lla t0, {kpgtbl}",
+                concat!("li t1, {", stringify!($i), "}*{pte_size}"), // Convert to byte index
+                "add t0, t0, t1",
+                concat!("li t1, {", stringify!($v), "}"),
+                save!(t1, t0[0]),
             )
         };
     }
@@ -37,10 +39,10 @@ unsafe extern "C" fn _start() -> ! {
         //
         // Identically map the physical memory region so that we can move to the
         // next instruction after activating the MMU.
-        set_kpgtbl!("{pm_vpn}", "{pm_pte}"),
+        set_kpgtbl!(pm_vpn, pm_pte),
         // Map the physical memory region to the kernel memory region so that we
         // can access the kernel in the VMS.
-        set_kpgtbl!("{vm_vpn}", "{pm_pte}"),
+        set_kpgtbl!(vm_vpn, pm_pte),
         // Activate the MMU (SV39)
         "
         lla  t0, {kpgtbl}
