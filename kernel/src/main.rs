@@ -10,8 +10,6 @@ use log::info;
 use riscv::register::stval;
 
 #[macro_use]
-mod utils;
-#[macro_use]
 mod console;
 mod asm;
 mod boot;
