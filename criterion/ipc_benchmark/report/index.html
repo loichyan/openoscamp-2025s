@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>ipc_benchmark Summary - Criterion.rs</title>
+    <style type="text/css">
+        body {
+            font: 14px Helvetica Neue;
+            text-rendering: optimizelegibility;
+        }
+
+        .body {
+            width: 960px;
+            margin: auto;
+        }
+
+        a:link {
+            color: #1F78B4;
+            text-decoration: none;
+        }
+
+        h2 {
+            font-size: 36px;
+            font-weight: 300;
+        }
+
+        h3 {
+            font-size: 24px;
+            font-weight: 300;
+        }
+
+        #footer {
+            height: 40px;
+            background: #888;
+            color: white;
+            font-size: larger;
+            font-weight: 300;
+        }
+
+        #footer a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        #footer p {
+            text-align: center
+        }
+    </style>
+</head>
+
+<body>
+    <div class="body">
+        <h2>ipc_benchmark</h2>
+        <h3>Violin Plot</h3>
+        <a href="violin.svg">
+            <img src="violin.svg" alt="Violin Plot" />
+        </a>
+        <p>This chart shows the relationship between function/parameter and iteration time. The thickness of the shaded
+            region indicates the probability that a measurement of the given function/parameter would take a particular
+            length of time.</p>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_00_4B_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_00_4B_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_00_4B_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_00_4B_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_00_4B_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_00_4B_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_01_64B_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_01_64B_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_01_64B_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_01_64B_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_01_64B_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_01_64B_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_02_512B_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_02_512B_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_02_512B_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_02_512B_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_02_512B_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_02_512B_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_03_1K_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_03_1K_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_03_1K_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_03_1K_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_03_1K_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_03_1K_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_04_4K_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_04_4K_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_04_4K_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_04_4K_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_04_4K_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_04_4K_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_05_16K_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_05_16K_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_05_16K_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_05_16K_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_05_16K_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_05_16K_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_06_32K_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_06_32K_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_06_32K_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_06_32K_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_06_32K_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_06_32K_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_07_64K_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_07_64K_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_07_64K_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_07_64K_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_07_64K_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_07_64K_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_08_256K_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_08_256K_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_08_256K_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_08_256K_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_08_256K_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_08_256K_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_09_512K_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_09_512K_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_09_512K_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_09_512K_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_09_512K_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_09_512K_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_10_1M_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_10_1M_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_10_1M_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_10_1M_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_10_1M_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_10_1M_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_evering/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_11_4M_evering</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_evering/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_evering/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_evering/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_evering/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_monoio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_11_4M_monoio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_monoio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_monoio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_monoio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_monoio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_shmipc/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_11_4M_shmipc</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_shmipc/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_shmipc/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_shmipc/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_shmipc/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_epoll/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_11_4M_tokio_epoll</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_epoll/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_epoll/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_epoll/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_epoll/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <section class="plots">
+            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_uring/report/index.html">
+                <h4>ipc_benchmark/ipc_benchmark_11_4M_tokio_uring</h4>
+            </a>
+            <table width="100%">
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_uring/report/pdf.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_uring/report/pdf_small.svg" alt="PDF of Slope" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                        <td>
+                            <a href="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_uring/report/regression.svg">
+                                <img src="../../ipc_benchmark/ipc_benchmark_11_4M_tokio_uring/report/regression_small.svg" alt="Regression" width="450"
+                                    height="300" />
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+    <div id="footer">
+        <p>This report was generated by
+            <a href="https://github.com/bheisler/criterion.rs">Criterion.rs</a>, a statistics-driven benchmarking
+            library in Rust.</p>
+    </div>
+</body>
+
+</html>
