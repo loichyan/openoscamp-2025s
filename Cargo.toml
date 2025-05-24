@@ -1,0 +1,9 @@
+[package]
+name = "io-uring-executor"
+version = "0.0.0"
+authors = ["Loi Chyan <loichyan@foxmail.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2024"
+
+[dependencies]
+pin-project-lite = "0.2.16"
