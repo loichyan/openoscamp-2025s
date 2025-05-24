@@ -3,27 +3,27 @@ use std::future::Future;
 use std::pin::Pin;
 use std::ptr::NonNull;
 
-trait AsyncIterator {
+pub trait AsyncIterator {
     type Item;
-    async fn next(&mut self) -> Option<Self::Item>;
+    fn next(&mut self) -> impl Future<Output = Option<Self::Item>>;
 }
 
-trait DynAsyncIterator {
+pub trait DynAsyncIterator {
     type Item;
     // 这里实际上把对返回值的储存委托给了调用方，而调用方可以自由选择储存方案．
-    fn next(
-        &mut self,
-        store: &mut dyn Storage,
-    ) -> Pin<&mut dyn Future<Output = Option<Self::Item>>>;
+    fn next<'this, 'store>(
+        &'this mut self,
+        store: &'store mut dyn Storage,
+    ) -> Pin<Object<'store, dyn 'this + Future<Output = Option<Self::Item>>>>;
 }
 
 impl<T: AsyncIterator> DynAsyncIterator for T {
     type Item = T::Item;
 
-    fn next(
-        &mut self,
-        store: &mut dyn Storage,
-    ) -> Pin<&mut dyn Future<Output = Option<Self::Item>>> {
+    fn next<'this, 'store>(
+        &'this mut self,
+        store: &'store mut dyn Storage,
+    ) -> Pin<Object<'store, dyn 'this + Future<Output = Option<Self::Item>>>> {
         #[rustfmt::skip]
         const fn return_type_layout<A1, R, F: FnOnce(A1) -> R>(_: &F) -> Layout { Layout::new::<R>() }
 
@@ -34,14 +34,37 @@ impl<T: AsyncIterator> DynAsyncIterator for T {
         // 这里要求返回的 pointer 必须被 Pin 到内存上
         unsafe {
             ptr.write(T::next(self));
-            Pin::new_unchecked(ptr.as_mut())
+            Pin::new_unchecked(Object(ptr.as_mut()))
+        }
+    }
+}
+
+pub struct Object<'a, T: ?Sized>(&'a mut T);
+
+impl<T: ?Sized> std::ops::Deref for Object<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl<T: ?Sized> std::ops::DerefMut for Object<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
+    }
+}
+
+impl<T: ?Sized> Drop for Object<'_, T> {
+    fn drop(&mut self) {
+        unsafe {
+            core::ptr::drop_in_place(self.0);
         }
     }
 }
 
 // 用来存放返回的 Future，本质上是一个一次性地内存分配器．
 // 实现时，可以使用 SmallVec 来避免因小 Future 导致的内存分配．
-trait Storage {
+pub trait Storage {
     fn acquire(&mut self, layout: Layout) -> NonNull<u8>;
 }
 
@@ -56,31 +79,35 @@ impl Storage for Vec<u8> {
     }
 }
 
-struct AsyncCounter(usize);
+#[tokio::test]
+async fn test_async_iterator() {
+    struct AsyncCounter(usize);
 
-impl AsyncIterator for AsyncCounter {
-    type Item = usize;
+    impl AsyncIterator for AsyncCounter {
+        type Item = usize;
 
-    async fn next(&mut self) -> Option<Self::Item> {
-        if self.0 == 0 {
-            return None;
-        } else if self.0 % 2 == 0 {
-            tokio::task::yield_now().await;
+        async fn next(&mut self) -> Option<Self::Item> {
+            if self.0 == 0 {
+                return None;
+            } else if self.0 % 2 == 0 {
+                tokio::task::yield_now().await;
+            }
+            self.0 -= 1;
+            Some(self.0)
         }
-        self.0 -= 1;
-        Some(self.0)
     }
-}
 
-// 在这里就能愉快的使用 dyn AsyncIterator :)
-async fn try_async_iterator(iter: &mut dyn DynAsyncIterator<Item = usize>) {
-    let mut store = vec![];
-    while let Some(i) = iter.next(&mut store).await {
-        println!("{i}");
+    // 在这里就能愉快的使用 dyn AsyncIterator :)
+    async fn try_async_iterator(iter: &mut dyn DynAsyncIterator<Item = usize>) {
+        let mut store = vec![];
+        while let Some(i) = iter.next(&mut store).await {
+            println!("{i}");
+        }
     }
-}
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
     try_async_iterator(&mut AsyncCounter(10)).await;
+}
+
+pub fn main() {
+    println!("Hello, Rust!");
 }
