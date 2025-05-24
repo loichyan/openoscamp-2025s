@@ -42,7 +42,11 @@
           profile = "minimal";
         };
 
-        mkDevShell = devPkgs: (mkShellNoCC { packages = devPkgs; });
+        mkDevShell =
+          devPkgs:
+          (mkShellNoCC {
+            packages = with pkgs; [ openssl ] ++ devPkgs;
+          });
       in
       {
         packages.default = pkgs.rustPlatform.buildRustPackage {

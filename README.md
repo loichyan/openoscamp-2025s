@@ -1,6 +1,12 @@
 # 🏕️ 2025 春夏季开源操作系统训练营
 
-使用 async Rust 实现的简易爬虫客户端．
+使用 async Rust 实现的简易爬虫客户端，目前的实现相当简单：抓取网页然后从 HTML 文档中解析链接，再爬取，如此重复．
+
+基本用法：
+
+```sh
+RUST_LOG=info cargo run --release -- -d data --max-depth=2 --max-rate=2 --url=...
+```
 
 ## ⚖️ 许可
 
