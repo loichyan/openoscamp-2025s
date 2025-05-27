@@ -1,11 +1,4 @@
----
-title: 2025春夏季开源操作系统训练营第三阶段总结报告
-date: 2025-05-19 17:31:32
-categories: [开源操作系统训练营]
-tags:
-  - author: loichyan
-  - repo: https://github.com/LearningOS/2025s-rcore-loichyan
----
+# 2025 春夏季开源操作系统训练营第三阶段总结报告
 
 ## 第二阶段总结
 
