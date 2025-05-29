@@ -148,11 +148,11 @@ pub unsafe extern "C" fn trap_entry() {
         // Save kernel's execution context
         "csrrw s0, sscratch, zero", // Restore %s0
         "addi sp, sp, -{CallerRegs_size}",
-        callee_regs!(save, sp[0]),
+        caller_regs!(save, sp[0]),
         // Call the trap handler
         "call {kernel_handler}",
         // Load kernel's execution context
-        callee_regs!(load, sp[0]),
+        caller_regs!(load, sp[0]),
         "addi sp, sp, {CallerRegs_size}",
         // Return to where the exception occurred
         "sret",
