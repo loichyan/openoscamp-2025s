@@ -5,6 +5,7 @@
 - **afit-dyn**: 让包含 `async fn` 的 `trait` 支持动态派发
 - **blog**: 学习过程中记录的博客
 - **local-executor**: 一个极简的单线程异步执行器
+- **spiral-os**: 一个学习性的半成品内核
 
 ## ⚖️ 许可
 
