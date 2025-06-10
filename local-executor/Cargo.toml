@@ -1,0 +1,8 @@
+[package]
+name = "local-executor"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+pin-project-lite = "0.2.16"

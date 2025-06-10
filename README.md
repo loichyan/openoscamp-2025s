@@ -1,11 +1,16 @@
 # 🏕️ 2025 春夏季开源操作系统训练营
 
-这里记录了我在 2025 春夏季开源操作系统训练营[^1]中的学习成果．主分支用于存放整理后的文档和日志，更详细、琐碎的开发日志见 [discussions](https://github.com/loichyan/openoscamp-2025s/discussions)．其它分支的内容包括：
+这里记录了我在 2025 春夏季开源操作系统训练营[^1]中的学习成果．主分支包括：
+
+- **local-executor**: 一个极简的单线程异步执行器
+
+其它分支上还包括：
 
 - **afit-dyn**: 让包含 `async fn` 的 `trait` 支持动态派发
 - **async-crawler**: 一个简陋的异步爬虫客户端
-- **local-executor**: 一个极简的单线程异步执行器
 - **spiral-os**: 一个学习性的半成品内核
+
+另外，本仓库的 [discussions](https://github.com/loichyan/openoscamp-2025s/discussions) 记录了详细的工作日志．
 
 ## ⚖️ 许可
 
