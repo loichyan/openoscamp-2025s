@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::pin::pin;
 use std::rc::{Rc, Weak};
-use std::task::{Context, ContextBuilder, LocalWaker, Poll, Waker};
+use std::task::{Context, Poll, Waker};
 
 pub fn spawn<T, F>(fut: F) -> Task<T>
 where
@@ -59,11 +59,7 @@ impl Executor {
             let count = queue.borrow().len();
             for _ in 0..count {
                 let task = queue.borrow_mut().pop_front().unwrap();
-                let waker = LocalWaker::from(task.clone());
-                let mut cx = ContextBuilder::from_waker(Waker::noop())
-                    .local_waker(&waker)
-                    .build();
-                _ = task.poll(&mut cx);
+                task.poll_wakeable();
             }
         }
     }
