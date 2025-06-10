@@ -1,10 +1,10 @@
 #![feature(local_waker)]
 
 mod task;
-pub use task::{Task, yield_now};
+pub use task::Task;
 
 mod executor;
-pub use executor::Executor;
+pub use executor::{Executor, spawn, yield_now};
 
 #[test]
 fn tick_counter() {
@@ -12,18 +12,19 @@ fn tick_counter() {
     use std::rc::Rc;
 
     let executor = Executor::new();
-    let signal = Rc::new(Cell::new(false));
-    executor.spawn({
-        let signal = signal.clone();
-        async move {
-            for i in (0..10).rev() {
-                println!("tick: {i}");
-                yield_now().await;
+    executor.block_on(async {
+        let signal = Rc::new(Cell::new(false));
+        spawn({
+            let signal = signal.clone();
+            async move {
+                for i in (0..10).rev() {
+                    println!("tick: {i}");
+                    yield_now().await;
+                }
+                signal.set(true);
             }
-            signal.set(true);
-        }
-    });
-    executor.spawn(async move {
+        });
+
         let mut i = 0;
         loop {
             println!("count: {i}");
@@ -34,7 +35,6 @@ fn tick_counter() {
             i += 1;
         }
     });
-    executor.run();
 }
 
 fn main() {

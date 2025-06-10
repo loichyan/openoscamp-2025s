@@ -1,4 +1,4 @@
-use crate::executor::TaskWaker;
+use crate::executor::ExecutorHandle;
 use pin_project_lite::pin_project;
 use std::any::Any;
 use std::cell::RefCell;
@@ -7,35 +7,18 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, LocalWake, Poll, ready};
 
-pub async fn yield_now() {
-    struct YieldNow(bool);
-    impl Future for YieldNow {
-        type Output = ();
-        fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-            if self.0 {
-                Poll::Ready(())
-            } else {
-                self.0 = true;
-                Poll::Pending
-            }
-        }
-    }
-    YieldNow(false).await;
-}
-
 pub struct Task<T> {
     inner: TaskRef,
     marker: PhantomData<T>,
 }
 
 impl<T> Task<T> {
-    pub(crate) fn new<F>(waker: TaskWaker, fut: F) -> Self
+    pub(crate) fn new<F>(fut: F) -> Self
     where
         T: 'static,
         F: 'static + Future<Output = T>,
     {
         let task = WakeableTask {
-            waker,
             task: RefCell::new(Box::pin(TaskImpl::Pending { fut })),
         };
         Self {
@@ -44,7 +27,7 @@ impl<T> Task<T> {
         }
     }
 
-    pub(crate) fn get_ref(&self) -> TaskRef {
+    pub(crate) fn inner(&self) -> TaskRef {
         self.inner.clone()
     }
 
@@ -69,7 +52,6 @@ impl<T: 'static> Future for Task<T> {
 pub(crate) type TaskRef = Rc<WakeableTask>;
 
 pub(crate) struct WakeableTask {
-    waker: TaskWaker,
     // TODO: Use handcrafted vtable to eliminate memory indirections
     task: RefCell<Pin<Box<dyn AnyTask>>>,
 }
@@ -82,11 +64,7 @@ impl WakeableTask {
 
 impl LocalWake for WakeableTask {
     fn wake(self: Rc<Self>) {
-        self.wake_by_ref();
-    }
-
-    fn wake_by_ref(self: &Rc<Self>) {
-        self.waker.wake(self.clone());
+        ExecutorHandle::wake(self);
     }
 }
 
