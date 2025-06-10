@@ -1,5 +1,5 @@
 [workspace]
-members = ["local-executor"]
+members = ["evering", "local-executor"]
 resolver = "3"
 
 [workspace.package]

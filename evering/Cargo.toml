@@ -1,0 +1,8 @@
+[package]
+name = "evering"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+slab = "0.4.9"
