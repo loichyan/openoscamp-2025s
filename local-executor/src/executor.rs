@@ -59,7 +59,7 @@ impl Executor {
             let count = queue.borrow().len();
             for _ in 0..count {
                 let task = queue.borrow_mut().pop_front().unwrap();
-                task.poll_wakeable();
+                _ = task.poll_wakeable();
             }
         }
     }

@@ -17,7 +17,7 @@ impl<T> Task<T> {
         T: 'static,
         F: 'static + Future<Output = T>,
     {
-        let task = WakeableTaskImpl(RefCell::new(TaskImpl::Pending { fut }));
+        let task = WakeableTaskImpl(RefCell::new(TaskImpl::Pending { fut, waker: None }));
         Self {
             inner: TaskRef(Rc::pin(task)),
             marker: PhantomData,
@@ -37,8 +37,10 @@ impl<T: 'static> Future for Task<T> {
     type Output = T;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let mut output = Poll::Pending::<T>;
-        self.inner.0.as_ref().poll_read(cx, Some(&mut output));
+        // This `Future` will remain pening until the corresponding task is
+        // ready and wake it.
+        let mut output = Poll::Pending;
+        self.inner.0.as_ref().read(cx.local_waker(), &mut output);
         output
     }
 }
@@ -47,19 +49,20 @@ impl<T: 'static> Future for Task<T> {
 pub(crate) struct TaskRef(Pin<Rc<dyn WakeableTask>>);
 
 impl TaskRef {
-    pub(crate) fn poll_wakeable(&self) {
+    pub(crate) fn poll_wakeable(&self) -> Poll<()> {
         use std::task::{ContextBuilder, Waker};
         let waker = self.0.clone().waker();
         let mut cx = ContextBuilder::from_waker(Waker::noop())
             .local_waker(&waker)
             .build();
-        self.0.as_ref().poll_read(&mut cx, None);
+        self.0.as_ref().poll(&mut cx)
     }
 }
 
 trait WakeableTask {
     fn abort(self: Pin<&Self>);
-    fn poll_read(self: Pin<&Self>, cx: &mut Context, output: Option<&mut dyn Any>);
+    fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()>;
+    fn read(self: Pin<&Self>, waker: &LocalWaker, output: &mut dyn Any);
     fn waker(self: Pin<Rc<Self>>) -> LocalWaker;
 }
 
@@ -79,10 +82,13 @@ where
     T: AnyTask,
 {
     fn abort(self: Pin<&Self>) {
-        self.exclusive_access().as_mut().abort();
+        self.exclusive_access().as_mut().abort()
     }
-    fn poll_read(self: Pin<&Self>, cx: &mut Context, output: Option<&mut dyn Any>) {
-        self.exclusive_access().as_mut().poll_read(cx, output);
+    fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()> {
+        self.exclusive_access().as_mut().poll(cx)
+    }
+    fn read(self: Pin<&Self>, waker: &LocalWaker, output: &mut dyn Any) {
+        self.exclusive_access().as_mut().read(waker, output)
     }
     fn waker(self: Pin<Rc<Self>>) -> LocalWaker {
         // SAFETY: The pointer is temporarily unpinned to satisfy the signature,
@@ -100,14 +106,15 @@ impl<T: AnyTask> LocalWake for WakeableTaskImpl<T> {
 
 trait AnyTask: 'static {
     fn abort(self: Pin<&mut Self>);
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context, output: Option<&mut dyn Any>);
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<()>;
+    fn read(self: Pin<&mut Self>, waker: &LocalWaker, output: &mut dyn Any);
 }
 
 pin_project_lite::pin_project! {
     #[project = TaskState]
-    enum TaskImpl<F> {
-        Aborted,
-        Pending { #[pin] fut: F },
+    enum TaskImpl<F: Future> {
+        Ready { val: Poll<F::Output> },
+        Pending { #[pin] fut: F, waker: Option<LocalWaker> },
     }
 }
 
@@ -116,20 +123,33 @@ where
     F: 'static + Future,
 {
     fn abort(mut self: Pin<&mut Self>) {
-        self.set(Self::Aborted);
+        self.set(Self::Ready { val: Poll::Pending });
     }
 
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context, output: Option<&mut dyn Any>) {
-        let TaskState::Pending { fut } = self.as_mut().project() else {
-            debug_assert!(output.is_none(), "invalid task state");
-            return;
-        };
-        let Poll::Ready(val) = fut.poll(cx) else {
-            return;
-        };
-        let Some(output) = output else {
-            return;
-        };
-        *output.downcast_mut().expect("invalid task state") = Poll::Ready(val);
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<()> {
+        match self.as_mut().project() {
+            TaskState::Ready { .. } => Poll::Ready(()),
+            TaskState::Pending { fut, waker } => {
+                let val = fut.poll(cx);
+                if val.is_pending() {
+                    return Poll::Pending;
+                }
+                let waker = waker.take();
+                self.set(Self::Ready { val });
+                _ = waker.map(LocalWaker::wake);
+                Poll::Ready(())
+            },
+        }
+    }
+
+    fn read(mut self: Pin<&mut Self>, waker: &LocalWaker, output: &mut dyn Any) {
+        match self.as_mut().project() {
+            TaskState::Ready { val } => {
+                let output = output.downcast_mut().expect("invalid task state");
+                std::mem::swap(val, output)
+            },
+            TaskState::Pending { waker: Some(w), .. } if !w.will_wake(waker) => *w = waker.clone(),
+            TaskState::Pending { waker: w, .. } => *w = Some(waker.clone()),
+        }
     }
 }
