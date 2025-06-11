@@ -36,7 +36,3 @@ fn tick_counter() {
         }
     });
 }
-
-fn main() {
-    println!("Hello, Rust!");
-}
