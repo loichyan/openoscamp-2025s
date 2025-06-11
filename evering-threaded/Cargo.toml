@@ -1,0 +1,11 @@
+[package]
+name = "evering-threaded"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+evering.workspace = true
+local-executor.workspace = true
+fastrand = "2.3.0"

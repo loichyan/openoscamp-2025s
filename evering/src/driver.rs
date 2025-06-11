@@ -9,11 +9,16 @@ pub struct OpId(usize);
 
 pub struct Driver<Payload>(RefCell<DriverInner<Payload>>);
 
+// TODO: panic on drop if there are pending operations
 struct DriverInner<Payload> {
     ops: Slab<Lifecycle<Payload>>,
 }
 
 impl<Payload> Driver<Payload> {
+    pub const fn new() -> Self {
+        Self(RefCell::new(DriverInner { ops: Slab::new() }))
+    }
+
     pub fn submit(&self) -> OpId {
         self.0.borrow_mut().submit()
     }
@@ -28,6 +33,12 @@ impl<Payload> Driver<Payload> {
 
     pub(crate) fn remove(&self, id: OpId, mut callback: impl FnMut() -> Cancellation) {
         self.0.borrow_mut().remove(id, &mut callback)
+    }
+}
+
+impl<Payload> Default for Driver<Payload> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

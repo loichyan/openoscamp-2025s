@@ -37,7 +37,7 @@ impl<T: 'static> Future for Task<T> {
     type Output = T;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        // This `Future` will remain pening until the corresponding task is
+        // This `Future` will remain pending until the corresponding task is
         // ready and wake it.
         let mut output = Poll::Pending;
         self.inner.0.as_ref().read(cx.local_waker(), &mut output);
