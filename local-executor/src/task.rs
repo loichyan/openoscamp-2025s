@@ -1,10 +1,11 @@
 use crate::executor::ExecutorHandle;
-use std::any::Any;
-use std::cell::{RefCell, RefMut};
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, LocalWake, LocalWaker, Poll};
+use alloc::rc::Rc;
+use alloc::task::LocalWake;
+use core::any::Any;
+use core::cell::{RefCell, RefMut};
+use core::marker::PhantomData;
+use core::pin::Pin;
+use core::task::{Context, LocalWaker, Poll};
 
 pub struct Task<T> {
     inner: TaskRef,
@@ -53,7 +54,7 @@ pub(crate) struct TaskRef(Pin<Rc<dyn WakeableTask>>);
 
 impl TaskRef {
     pub(crate) fn poll_wakeable(&self) -> Poll<()> {
-        use std::task::{ContextBuilder, Waker};
+        use core::task::{ContextBuilder, Waker};
         let waker = self.0.clone().waker();
         let mut cx = ContextBuilder::from_waker(Waker::noop())
             .local_waker(&waker)
@@ -159,7 +160,7 @@ where
         match self.as_mut().project() {
             TaskState::Ready { val } => {
                 let output = output.downcast_mut().expect("invalid task state");
-                std::mem::swap(val, output)
+                core::mem::swap(val, output)
             },
             TaskState::Pending { waker: Some(w), .. } if !w.will_wake(waker) => *w = waker.clone(),
             TaskState::Pending { waker: w, .. } => *w = Some(waker.clone()),

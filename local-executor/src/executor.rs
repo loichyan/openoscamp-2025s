@@ -1,8 +1,8 @@
 use crate::task::*;
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::pin::pin;
-use std::task::{Context, Poll, Waker};
+use alloc::collections::VecDeque;
+use core::cell::RefCell;
+use core::pin::pin;
+use core::task::{Context, Poll, Waker};
 
 pub fn spawn<Ex, T, F>(handle: Ex, fut: F) -> Task<T>
 where
@@ -18,7 +18,7 @@ where
 
 pub async fn yield_now() {
     let mut polled = false;
-    std::future::poll_fn(|cx| {
+    core::future::poll_fn(|cx| {
         if polled {
             Poll::Ready(())
         } else {
@@ -78,8 +78,8 @@ pub trait ExecutorHandle: 'static + Unpin + Sized {
 
     fn get(&self) -> Self::Ref;
 }
-impl ExecutorHandle for std::rc::Weak<Executor> {
-    type Ref = std::rc::Rc<Executor>;
+impl ExecutorHandle for alloc::rc::Weak<Executor> {
+    type Ref = alloc::rc::Rc<Executor>;
     fn get(&self) -> Self::Ref {
         self.upgrade().expect("not inside a valid executor")
     }

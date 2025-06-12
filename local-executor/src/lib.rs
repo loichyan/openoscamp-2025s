@@ -1,4 +1,7 @@
 #![feature(local_waker)]
+#![cfg_attr(not(test), no_std)]
+
+extern crate alloc;
 
 mod task;
 pub use task::Task;
