@@ -3,6 +3,20 @@ use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+pub trait Uring {
+    type Sqe;
+    type Rqe;
+    type Ext;
+
+    fn send(&mut self, val: Self::Sqe) -> Result<(), Self::Sqe>;
+
+    fn recv(&mut self) -> Option<Self::Rqe>;
+
+    fn ext(&self) -> &Self::Ext
+    where
+        Self::Ext: Sync;
+}
+
 pub struct Sender<Sqe, Rqe, T = ()>(RawUring<Sqe, Rqe, T>);
 
 pub struct Receiver<Sqe, Rqe, T = ()>(RawUring<Sqe, Rqe, T>);
@@ -11,21 +25,6 @@ unsafe impl<Sqe: Send, Rqe: Send, T: Send> Send for Sender<Sqe, Rqe, T> {}
 unsafe impl<Sqe: Send, Rqe: Send, T: Send> Send for Receiver<Sqe, Rqe, T> {}
 
 impl<Sqe, Rqe, T> Sender<Sqe, Rqe, T> {
-    pub fn send(&mut self, val: Sqe) -> Result<(), Sqe> {
-        unsafe { self.0.sq().enqueue(val) }
-    }
-
-    pub fn recv(&mut self) -> Option<Rqe> {
-        unsafe { self.0.rq().dequeue() }
-    }
-
-    pub fn ext(&self) -> &T
-    where
-        T: Sync,
-    {
-        unsafe { &self.0.header.as_ref().ext }
-    }
-
     pub fn into_raw(self) -> RawUring<Sqe, Rqe, T> {
         let inner = RawUring {
             header: self.0.header,
@@ -47,21 +46,6 @@ impl<Sqe, Rqe, T> Sender<Sqe, Rqe, T> {
 }
 
 impl<Sqe, Rqe, T> Receiver<Sqe, Rqe, T> {
-    pub fn accept(&mut self) -> Option<Sqe> {
-        unsafe { self.0.sq().dequeue() }
-    }
-
-    pub fn reply(&mut self, val: Rqe) -> Result<(), Rqe> {
-        unsafe { self.0.rq().enqueue(val) }
-    }
-
-    pub fn ext(&self) -> &T
-    where
-        T: Sync,
-    {
-        unsafe { &self.0.header.as_ref().ext }
-    }
-
     pub fn into_raw(self) -> RawUring<Sqe, Rqe, T> {
         let inner = RawUring {
             header: self.0.header,
@@ -79,6 +63,48 @@ impl<Sqe, Rqe, T> Receiver<Sqe, Rqe, T> {
     /// [`into_raw`](Self::into_raw).
     pub unsafe fn from_raw(uring: RawUring<Sqe, Rqe, T>) -> Self {
         Self(uring)
+    }
+}
+
+impl<Sqe, Rqe, T> Uring for Sender<Sqe, Rqe, T> {
+    type Rqe = Rqe;
+    type Sqe = Sqe;
+    type Ext = T;
+
+    fn send(&mut self, val: Sqe) -> Result<(), Sqe> {
+        unsafe { self.0.sq().enqueue(val) }
+    }
+
+    fn recv(&mut self) -> Option<Rqe> {
+        unsafe { self.0.rq().dequeue() }
+    }
+
+    fn ext(&self) -> &T
+    where
+        T: Sync,
+    {
+        unsafe { &self.0.header.as_ref().ext }
+    }
+}
+
+impl<Sqe, Rqe, T> Uring for Receiver<Sqe, Rqe, T> {
+    type Rqe = Sqe;
+    type Sqe = Rqe;
+    type Ext = T;
+
+    fn send(&mut self, val: Rqe) -> Result<(), Rqe> {
+        unsafe { self.0.rq().enqueue(val) }
+    }
+
+    fn recv(&mut self) -> Option<Sqe> {
+        unsafe { self.0.sq().dequeue() }
+    }
+
+    fn ext(&self) -> &T
+    where
+        T: Sync,
+    {
+        unsafe { &self.0.header.as_ref().ext }
     }
 }
 
@@ -335,7 +361,7 @@ mod tests {
             cx.spawn(|| {
                 for i in input.iter().copied().map(DropCounter) {
                     if i.0.is_lowercase() {
-                        rq.reply(i).unwrap();
+                        rq.send(i).unwrap();
                     }
                 }
                 drop(rq);
@@ -364,7 +390,7 @@ mod tests {
                 }
                 sq_finished.store(true, Ordering::Release);
                 while !rq_finished.load(Ordering::Acquire) {
-                    std::hint::spin_loop();
+                    std::thread::yield_now();
                 }
                 while let Some(i) = sq.recv() {
                     r.push(i);
@@ -374,16 +400,16 @@ mod tests {
             cx.spawn(|| {
                 let mut r = vec![];
                 for i in input.iter().copied() {
-                    rq.reply(i).unwrap();
-                    while let Some(i) = rq.accept() {
+                    rq.send(i).unwrap();
+                    while let Some(i) = rq.recv() {
                         r.push(i);
                     }
                 }
                 rq_finished.store(true, Ordering::Release);
                 while !sq_finished.load(Ordering::Acquire) {
-                    std::hint::spin_loop();
+                    std::thread::yield_now();
                 }
-                while let Some(i) = rq.accept() {
+                while let Some(i) = rq.recv() {
                     r.push(i);
                 }
                 assert_eq!(r, input);
