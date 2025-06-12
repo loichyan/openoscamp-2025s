@@ -2,16 +2,17 @@ use crate::task::*;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::pin::pin;
-use std::rc::{Rc, Weak};
 use std::task::{Context, Poll, Waker};
 
-pub fn spawn<T, F>(fut: F) -> Task<T>
+pub fn spawn<Ex, T, F>(handle: Ex, fut: F) -> Task<T>
 where
     T: 'static,
     F: 'static + Future<Output = T>,
+    Ex: ExecutorHandle,
 {
-    let task = Task::new(fut);
-    ExecutorHandle::wake(task.inner());
+    let ex = handle.get();
+    let task = Task::new(handle, fut);
+    ex.wake(task.inner());
     task
 }
 
@@ -29,23 +30,24 @@ pub async fn yield_now() {
     .await
 }
 
-pub struct Executor(Rc<ExecutorInner>);
-
-struct ExecutorInner {
+pub struct Executor {
     queue: RefCell<VecDeque<TaskRef>>,
 }
 
 impl Executor {
     pub fn new() -> Self {
-        let inner = ExecutorInner {
+        Self {
             queue: RefCell::new(VecDeque::new()),
-        };
-        Self(Rc::new(inner))
+        }
+    }
+
+    pub(crate) fn wake(&self, task: TaskRef) {
+        self.queue.borrow_mut().push_back(task);
     }
 
     pub fn block_on<T>(&self, fut: impl Future<Output = T>) -> T {
-        let _guard = ExecutorHandle::enter(&self.0);
-        let ExecutorInner { queue } = &*self.0;
+        // let _guard = ExecutorHandle::enter(&self.0);
+        let Self { queue } = self;
         let mut cx = Context::from_waker(Waker::noop());
         let mut fut = pin!(fut);
         loop {
@@ -71,35 +73,14 @@ impl Default for Executor {
     }
 }
 
-thread_local! {
-    static CX: RefCell<Weak<ExecutorInner>> = const { RefCell::new(Weak::new()) };
+pub trait ExecutorHandle: 'static + Unpin + Sized {
+    type Ref: core::ops::Deref<Target = Executor>;
+
+    fn get(&self) -> Self::Ref;
 }
-
-pub(crate) struct ExecutorHandle;
-
-impl ExecutorHandle {
-    fn get() -> Rc<ExecutorInner> {
-        CX.with_borrow(Weak::upgrade)
-            .expect("not inside a valid executor")
-    }
-
-    fn enter(cx: &Rc<ExecutorInner>) -> impl Drop {
-        struct Revert;
-        impl Drop for Revert {
-            fn drop(&mut self) {
-                CX.with_borrow_mut(|d| *d = Weak::new())
-            }
-        }
-        CX.with_borrow_mut(|d| {
-            if d.strong_count() != 0 {
-                panic!("cannot run within a nested executor")
-            }
-            *d = Rc::downgrade(cx)
-        });
-        Revert
-    }
-
-    pub(crate) fn wake(task: TaskRef) {
-        Self::get().queue.borrow_mut().push_back(task);
+impl ExecutorHandle for std::rc::Weak<Executor> {
+    type Ref = std::rc::Rc<Executor>;
+    fn get(&self) -> Self::Ref {
+        self.upgrade().expect("not inside a valid executor")
     }
 }

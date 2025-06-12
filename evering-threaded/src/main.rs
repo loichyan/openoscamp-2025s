@@ -8,6 +8,7 @@ use self::reactor::Reactor;
 use evering::uring::{Uring, UringBuilder};
 use local_executor::Executor;
 use std::collections::VecDeque;
+use std::rc::Rc;
 use std::time::Duration;
 
 fn main() {
@@ -16,7 +17,7 @@ fn main() {
     std::thread::scope(|cx| {
         cx.spawn(|| {
             let reactor = Reactor::new(sq);
-            let rt = Executor::new();
+            let rt = Rc::new(Executor::new());
             rt.block_on(reactor.run_on(async {
                 let tasks = (0..10)
                     .map(|i| async move {
@@ -25,7 +26,7 @@ fn main() {
                         let elapsed = now.elapsed().as_millis();
                         println!("finished pong({i}) elapsed={elapsed}ms with token={token:#x}");
                     })
-                    .map(local_executor::spawn)
+                    .map(|fut| local_executor::spawn(Rc::downgrade(&rt), fut))
                     .take(10)
                     .collect::<Vec<_>>();
 

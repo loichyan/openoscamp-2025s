@@ -4,17 +4,17 @@ mod task;
 pub use task::Task;
 
 mod executor;
-pub use executor::{Executor, spawn, yield_now};
+pub use executor::{Executor, ExecutorHandle, spawn, yield_now};
 
 #[test]
 fn tick_counter() {
     use std::cell::Cell;
     use std::rc::Rc;
 
-    let executor = Executor::new();
+    let executor = Rc::new(Executor::new());
     executor.block_on(async {
         let signal = Rc::new(Cell::new(false));
-        spawn({
+        spawn(Rc::downgrade(&executor), {
             let signal = signal.clone();
             async move {
                 for i in (0..10).rev() {

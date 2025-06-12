@@ -12,12 +12,15 @@ pub struct Task<T> {
 }
 
 impl<T> Task<T> {
-    pub(crate) fn new<F>(fut: F) -> Self
+    pub(crate) fn new<Ex>(executor: Ex, fut: impl 'static + Future<Output = T>) -> Self
     where
         T: 'static,
-        F: 'static + Future<Output = T>,
+        Ex: ExecutorHandle,
     {
-        let task = WakeableTaskImpl(RefCell::new(TaskImpl::Pending { fut, waker: None }));
+        let task = WakeableTaskImpl {
+            task: RefCell::new(TaskImpl::Pending { fut, waker: None }),
+            executor,
+        };
         Self {
             inner: TaskRef(Rc::pin(task)),
             marker: PhantomData,
@@ -66,20 +69,24 @@ trait WakeableTask {
     fn waker(self: Pin<Rc<Self>>) -> LocalWaker;
 }
 
-struct WakeableTaskImpl<T>(RefCell<T>);
+struct WakeableTaskImpl<T, Ex> {
+    task: RefCell<T>,
+    executor: Ex,
+}
 
-impl<T> WakeableTaskImpl<T> {
+impl<T, Ex> WakeableTaskImpl<T, Ex> {
     fn exclusive_access(self: Pin<&Self>) -> Pin<RefMut<T>> {
         // SAFETY: This is a projection from `Pin<&RefCell>` to `Pin<RefMut>`.
         // It's safe because this method is the only way to grant access to the
         // underlying value, and the returned pointers are always pinned.
-        unsafe { Pin::new_unchecked(self.get_ref().0.borrow_mut()) }
+        unsafe { Pin::new_unchecked(self.get_ref().task.borrow_mut()) }
     }
 }
 
-impl<T> WakeableTask for WakeableTaskImpl<T>
+impl<T, Ex> WakeableTask for WakeableTaskImpl<T, Ex>
 where
     T: AnyTask,
+    Ex: ExecutorHandle,
 {
     fn abort(self: Pin<&Self>) {
         self.exclusive_access().as_mut().abort()
@@ -97,10 +104,16 @@ where
     }
 }
 
-impl<T: AnyTask> LocalWake for WakeableTaskImpl<T> {
+impl<T, Ex> LocalWake for WakeableTaskImpl<T, Ex>
+where
+    T: AnyTask,
+    Ex: ExecutorHandle,
+{
     fn wake(self: Rc<Self>) {
         // SAFETY: See the comments above.
-        ExecutorHandle::wake(TaskRef(unsafe { Pin::new_unchecked(self) }))
+        self.executor
+            .get()
+            .wake(TaskRef(unsafe { Pin::new_unchecked(self) }))
     }
 }
 
