@@ -4,32 +4,34 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 pub trait Uring {
-    type Sqe;
-    type Rqe;
+    type A;
+    type B;
     type Ext;
 
-    fn send(&mut self, val: Self::Sqe) -> Result<(), Self::Sqe>;
+    fn send(&mut self, val: Self::A) -> Result<(), Self::A>;
 
-    fn recv(&mut self) -> Option<Self::Rqe>;
+    fn recv(&mut self) -> Option<Self::B>;
 
     fn ext(&self) -> &Self::Ext
     where
         Self::Ext: Sync;
 }
 
-pub struct Sender<Sqe, Rqe, T = ()>(RawUring<Sqe, Rqe, T>);
+pub type Sender<Sqe, Rqe, T = ()> = UringA<Sqe, Rqe, T>;
+pub type Receiver<Sqe, Rqe, T = ()> = UringB<Sqe, Rqe, T>;
 
-pub struct Receiver<Sqe, Rqe, T = ()>(RawUring<Sqe, Rqe, T>);
+pub struct UringA<A, B, T = ()>(RawUring<A, B, T>);
+pub struct UringB<A, B, T = ()>(RawUring<A, B, T>);
 
-unsafe impl<Sqe: Send, Rqe: Send, T: Send> Send for Sender<Sqe, Rqe, T> {}
-unsafe impl<Sqe: Send, Rqe: Send, T: Send> Send for Receiver<Sqe, Rqe, T> {}
+unsafe impl<A: Send, B: Send, T: Send> Send for UringA<A, B, T> {}
+unsafe impl<A: Send, B: Send, T: Send> Send for UringB<A, B, T> {}
 
-impl<Sqe, Rqe, T> Sender<Sqe, Rqe, T> {
-    pub fn into_raw(self) -> RawUring<Sqe, Rqe, T> {
+impl<A, B, T> UringA<A, B, T> {
+    pub fn into_raw(self) -> RawUring<A, B, T> {
         let inner = RawUring {
             header: self.0.header,
-            sqbuf: self.0.sqbuf,
-            rqbuf: self.0.rqbuf,
+            buf_a: self.0.buf_a,
+            buf_b: self.0.buf_b,
             marker: PhantomData,
         };
         std::mem::forget(self);
@@ -40,17 +42,17 @@ impl<Sqe, Rqe, T> Sender<Sqe, Rqe, T> {
     ///
     /// The specified [`RawUring`] must be a valid value returned from
     /// [`into_raw`](Self::into_raw).
-    pub unsafe fn from_raw(uring: RawUring<Sqe, Rqe, T>) -> Self {
+    pub unsafe fn from_raw(uring: RawUring<A, B, T>) -> Self {
         Self(uring)
     }
 }
 
-impl<Sqe, Rqe, T> Receiver<Sqe, Rqe, T> {
-    pub fn into_raw(self) -> RawUring<Sqe, Rqe, T> {
+impl<A, B, T> UringB<A, B, T> {
+    pub fn into_raw(self) -> RawUring<A, B, T> {
         let inner = RawUring {
             header: self.0.header,
-            sqbuf: self.0.sqbuf,
-            rqbuf: self.0.rqbuf,
+            buf_a: self.0.buf_a,
+            buf_b: self.0.buf_b,
             marker: PhantomData,
         };
         std::mem::forget(self);
@@ -61,22 +63,22 @@ impl<Sqe, Rqe, T> Receiver<Sqe, Rqe, T> {
     ///
     /// The specified [`RawUring`] must be a valid value returned from
     /// [`into_raw`](Self::into_raw).
-    pub unsafe fn from_raw(uring: RawUring<Sqe, Rqe, T>) -> Self {
+    pub unsafe fn from_raw(uring: RawUring<A, B, T>) -> Self {
         Self(uring)
     }
 }
 
-impl<Sqe, Rqe, T> Uring for Sender<Sqe, Rqe, T> {
-    type Rqe = Rqe;
-    type Sqe = Sqe;
+impl<A, B, T> Uring for UringA<A, B, T> {
+    type A = A;
+    type B = B;
     type Ext = T;
 
-    fn send(&mut self, val: Sqe) -> Result<(), Sqe> {
-        unsafe { self.0.sq().enqueue(val) }
+    fn send(&mut self, val: A) -> Result<(), A> {
+        unsafe { self.0.queue_a().enqueue(val) }
     }
 
-    fn recv(&mut self) -> Option<Rqe> {
-        unsafe { self.0.rq().dequeue() }
+    fn recv(&mut self) -> Option<B> {
+        unsafe { self.0.queue_b().dequeue() }
     }
 
     fn ext(&self) -> &T
@@ -87,17 +89,17 @@ impl<Sqe, Rqe, T> Uring for Sender<Sqe, Rqe, T> {
     }
 }
 
-impl<Sqe, Rqe, T> Uring for Receiver<Sqe, Rqe, T> {
-    type Rqe = Sqe;
-    type Sqe = Rqe;
+impl<A, B, T> Uring for UringB<A, B, T> {
+    type A = B;
+    type B = A;
     type Ext = T;
 
-    fn send(&mut self, val: Rqe) -> Result<(), Rqe> {
-        unsafe { self.0.rq().enqueue(val) }
+    fn send(&mut self, val: B) -> Result<(), B> {
+        unsafe { self.0.queue_b().enqueue(val) }
     }
 
-    fn recv(&mut self) -> Option<Sqe> {
-        unsafe { self.0.sq().dequeue() }
+    fn recv(&mut self) -> Option<A> {
+        unsafe { self.0.queue_a().dequeue() }
     }
 
     fn ext(&self) -> &T
@@ -108,21 +110,21 @@ impl<Sqe, Rqe, T> Uring for Receiver<Sqe, Rqe, T> {
     }
 }
 
-impl<Sqe, Rqe, T> Drop for Sender<Sqe, Rqe, T> {
+impl<A, B, T> Drop for UringA<A, B, T> {
     fn drop(&mut self) {
         unsafe { self.0.drop_in_place() }
     }
 }
 
-impl<Sqe, Rqe, T> Drop for Receiver<Sqe, Rqe, T> {
+impl<A, B, T> Drop for UringB<A, B, T> {
     fn drop(&mut self) {
         unsafe { self.0.drop_in_place() }
     }
 }
 
 pub struct UringHeader<T> {
-    sqoff: Offsets,
-    rqoff: Offsets,
+    off_a: Offsets,
+    off_b: Offsets,
     rc: AtomicU32,
     ext: T,
 }
@@ -144,10 +146,10 @@ impl Offsets {
     }
 }
 
-pub struct RawUring<Sqe, Rqe, T> {
+pub struct RawUring<A, B, T> {
     pub header: NonNull<UringHeader<T>>,
-    pub sqbuf: NonNull<Sqe>,
-    pub rqbuf: NonNull<Rqe>,
+    pub buf_a: NonNull<A>,
+    pub buf_b: NonNull<B>,
     marker: PhantomData<fn(T) -> T>,
 }
 
@@ -156,18 +158,18 @@ pub struct Queue<'a, T> {
     buf: NonNull<T>,
 }
 
-impl<Sqe, Rqe, T> RawUring<Sqe, Rqe, T> {
-    unsafe fn sq(&self) -> Queue<'_, Sqe> {
+impl<A, B, T> RawUring<A, B, T> {
+    unsafe fn queue_a(&self) -> Queue<'_, A> {
         Queue {
-            off: unsafe { &self.header.as_ref().sqoff },
-            buf: self.sqbuf,
+            off: unsafe { &self.header.as_ref().off_a },
+            buf: self.buf_a,
         }
     }
 
-    unsafe fn rq(&self) -> Queue<'_, Rqe> {
+    unsafe fn queue_b(&self) -> Queue<'_, B> {
         Queue {
-            off: unsafe { &self.header.as_ref().rqoff },
-            buf: self.rqbuf,
+            off: unsafe { &self.header.as_ref().off_b },
+            buf: self.buf_b,
         }
     }
 
@@ -180,17 +182,9 @@ impl<Sqe, Rqe, T> RawUring<Sqe, Rqe, T> {
         // `Acquire` enforces the deletion of the data to happen after here.
         std::sync::atomic::fence(Ordering::Acquire);
 
-        debug_assert!((h.sqoff.ring_mask + 1).is_power_of_two());
-        debug_assert!((h.rqoff.ring_mask + 1).is_power_of_two());
         unsafe {
-            for i in h.sqoff.head.as_ptr().read()..h.sqoff.tail.as_ptr().read() {
-                self.sqbuf.add(i as usize).drop_in_place();
-            }
-            for i in h.rqoff.head.as_ptr().read()..h.rqoff.tail.as_ptr().read() {
-                self.rqbuf.add(i as usize).drop_in_place();
-            }
-            dealloc_buffer(self.sqbuf, h.sqoff.ring_mask as usize + 1);
-            dealloc_buffer(self.rqbuf, h.rqoff.ring_mask as usize + 1);
+            self.queue_a().drop_in_place();
+            self.queue_b().drop_in_place();
             dealloc(self.header);
         }
     }
@@ -198,7 +192,7 @@ impl<Sqe, Rqe, T> RawUring<Sqe, Rqe, T> {
 
 impl<T> Queue<'_, T> {
     // TODO: support enqueuing multiple entries
-    unsafe fn enqueue(&self, val: T) -> Result<(), T> {
+    unsafe fn enqueue(&mut self, val: T) -> Result<(), T> {
         let Self { off, buf } = self;
         debug_assert!((off.ring_mask + 1).is_power_of_two());
 
@@ -215,7 +209,7 @@ impl<T> Queue<'_, T> {
     }
 
     // TODO: support dequeuing all available entries
-    unsafe fn dequeue(&self) -> Option<T> {
+    unsafe fn dequeue(&mut self) -> Option<T> {
         let Self { off, buf } = self;
         debug_assert!((off.ring_mask + 1).is_power_of_two());
 
@@ -230,76 +224,86 @@ impl<T> Queue<'_, T> {
 
         Some(val)
     }
+
+    unsafe fn drop_in_place(&mut self) {
+        debug_assert!((self.off.ring_mask + 1).is_power_of_two());
+        unsafe {
+            for i in self.off.head.as_ptr().read()..self.off.tail.as_ptr().read() {
+                self.buf.add(i as usize).drop_in_place();
+            }
+            dealloc_buffer(self.buf, self.off.ring_mask as usize + 1);
+        }
+    }
 }
 
-pub struct UringBuilder<Sqe, Rqe, T> {
-    sqsize: usize,
-    rqsize: usize,
+pub struct UringBuilder<A, B, T> {
+    size_a: usize,
+    size_b: usize,
     ext: T,
-    marker: PhantomData<(Sqe, Rqe)>,
+    marker: PhantomData<(A, B)>,
 }
 
-impl<Sqe, Rqe, T> UringBuilder<Sqe, Rqe, T> {
+impl<A, B, T> UringBuilder<A, B, T> {
     pub fn new(ext: T) -> Self {
         Self {
-            sqsize: 32,
-            rqsize: 32,
+            size_a: 32,
+            size_b: 32,
             ext,
             marker: PhantomData,
         }
     }
 
-    pub fn sqsize(&mut self, size: usize) -> &mut Self {
+    pub fn size_a(&mut self, size: usize) -> &mut Self {
         assert!(size.is_power_of_two());
-        self.sqsize = size;
+        self.size_a = size;
         self
     }
 
-    pub fn rqsize(&mut self, size: usize) -> &mut Self {
+    pub fn size_b(&mut self, size: usize) -> &mut Self {
         assert!(size.is_power_of_two());
-        self.rqsize = size;
+        self.size_b = size;
         self
     }
 
-    pub fn build(self) -> (Sender<Sqe, Rqe, T>, Receiver<Sqe, Rqe, T>) {
+    pub fn build(self) -> (UringA<A, B, T>, UringB<A, B, T>) {
         let Self {
-            sqsize,
-            rqsize,
+            size_a,
+            size_b,
             ext,
             marker: _,
         } = self;
 
         let header;
-        let sqbuf;
-        let rqbuf;
+        let buf_a;
+        let buf_b;
 
         unsafe {
             header = alloc::<UringHeader<T>>();
-            sqbuf = alloc_buffer(sqsize);
-            rqbuf = alloc_buffer(rqsize);
+            buf_a = alloc_buffer(size_a);
+            buf_b = alloc_buffer(size_b);
 
             header.write(UringHeader {
-                sqoff: Offsets::new(sqsize as u32),
-                rqoff: Offsets::new(rqsize as u32),
+                off_a: Offsets::new(size_a as u32),
+                off_b: Offsets::new(size_b as u32),
                 rc: AtomicU32::new(2),
                 ext,
             });
         }
 
-        let sender = Sender(RawUring {
+        let ring_a = UringA(RawUring {
             header,
-            sqbuf,
-            rqbuf,
+            buf_a,
+            buf_b,
             marker: PhantomData,
         });
-        let receiver = Receiver(RawUring {
+        let ring_b = UringB(RawUring {
             header,
-            sqbuf,
-            rqbuf,
+            buf_a,
+            buf_b,
             marker: PhantomData,
         });
 
-        (sender, receiver)
+        (ring_a, ring_b)
     }
 }
 
@@ -348,23 +352,27 @@ mod tests {
             .take(30)
             .collect::<Vec<_>>();
 
-        let (mut sq, mut rq) = UringBuilder::new(()).build();
+        let (mut qa, mut qb) = UringBuilder::new(()).build();
         std::thread::scope(|cx| {
             cx.spawn(|| {
                 for i in input.iter().copied().map(DropCounter) {
                     if i.0.is_uppercase() {
-                        sq.send(i).unwrap();
+                        qa.send(i).unwrap();
+                    } else {
+                        _ = qa.recv();
                     }
                 }
-                drop(sq);
+                drop(qa);
             });
             cx.spawn(|| {
                 for i in input.iter().copied().map(DropCounter) {
                     if i.0.is_lowercase() {
-                        rq.send(i).unwrap();
+                        qb.send(i).unwrap();
+                    } else {
+                        _ = qb.recv();
                     }
                 }
-                drop(rq);
+                drop(qb);
             });
         });
 
@@ -377,22 +385,22 @@ mod tests {
             .take(30)
             .collect::<Vec<_>>();
 
-        let (mut sq, mut rq) = UringBuilder::new(()).build();
-        let (sq_finished, rq_finished) = (AtomicBool::new(false), AtomicBool::new(false));
+        let (mut qa, mut qb) = UringBuilder::new(()).build();
+        let (qa_finished, qb_finished) = (AtomicBool::new(false), AtomicBool::new(false));
         std::thread::scope(|cx| {
             cx.spawn(|| {
                 let mut r = vec![];
                 for i in input.iter().copied() {
-                    sq.send(i).unwrap();
-                    while let Some(i) = sq.recv() {
+                    qa.send(i).unwrap();
+                    while let Some(i) = qa.recv() {
                         r.push(i);
                     }
                 }
-                sq_finished.store(true, Ordering::Release);
-                while !rq_finished.load(Ordering::Acquire) {
+                qa_finished.store(true, Ordering::Release);
+                while !qb_finished.load(Ordering::Acquire) {
                     std::thread::yield_now();
                 }
-                while let Some(i) = sq.recv() {
+                while let Some(i) = qa.recv() {
                     r.push(i);
                 }
                 assert_eq!(r, input);
@@ -400,16 +408,16 @@ mod tests {
             cx.spawn(|| {
                 let mut r = vec![];
                 for i in input.iter().copied() {
-                    rq.send(i).unwrap();
-                    while let Some(i) = rq.recv() {
+                    qb.send(i).unwrap();
+                    while let Some(i) = qb.recv() {
                         r.push(i);
                     }
                 }
-                rq_finished.store(true, Ordering::Release);
-                while !sq_finished.load(Ordering::Acquire) {
+                qb_finished.store(true, Ordering::Release);
+                while !qa_finished.load(Ordering::Acquire) {
                     std::thread::yield_now();
                 }
-                while let Some(i) = rq.recv() {
+                while let Some(i) = qb.recv() {
                     r.push(i);
                 }
                 assert_eq!(r, input);
