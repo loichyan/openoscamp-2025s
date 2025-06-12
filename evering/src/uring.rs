@@ -17,6 +17,41 @@ pub trait Uring {
         Self::Ext: Sync;
 }
 
+pub enum UringEither<V, T> {
+    A(UringA<V, V, T>),
+    B(UringB<V, V, T>),
+}
+
+impl<V, T> Uring for UringEither<V, T> {
+    type A = V;
+    type B = V;
+    type Ext = T;
+
+    fn send(&mut self, val: V) -> Result<(), V> {
+        match self {
+            UringEither::A(a) => a.send(val),
+            UringEither::B(b) => b.send(val),
+        }
+    }
+
+    fn recv(&mut self) -> Option<V> {
+        match self {
+            UringEither::A(a) => a.recv(),
+            UringEither::B(b) => b.recv(),
+        }
+    }
+
+    fn ext(&self) -> &T
+    where
+        T: Sync,
+    {
+        match self {
+            UringEither::A(a) => a.ext(),
+            UringEither::B(b) => b.ext(),
+        }
+    }
+}
+
 pub type Sender<Sqe, Rqe, T = ()> = UringA<Sqe, Rqe, T>;
 pub type Receiver<Sqe, Rqe, T = ()> = UringB<Sqe, Rqe, T>;
 
