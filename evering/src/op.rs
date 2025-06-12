@@ -4,10 +4,10 @@ use core::any::Any;
 use core::pin::Pin;
 use core::task::{Context, LocalWaker, Poll};
 
-pub(crate) enum Lifecycle<T> {
+pub(crate) enum Lifecycle<P> {
     Submitted,
     Waiting(LocalWaker),
-    Completed(T),
+    Completed(P),
     Cancelled(#[allow(dead_code)] Cancellation),
 }
 
@@ -37,22 +37,22 @@ pub unsafe trait Completable: 'static + Unpin {
     fn cancel(self) -> Cancellation;
 }
 
-pub struct Op<T, D>
+pub struct Op<T, Drv>
 where
     T: Completable,
-    D: DriverHandle,
+    Drv: DriverHandle,
 {
-    driver: D,
+    driver: Drv,
     id: OpId,
     data: Option<T>,
 }
 
-impl<T, D> Op<T, D>
+impl<T, Drv> Op<T, Drv>
 where
     T: Completable,
-    D: DriverHandle,
+    Drv: DriverHandle,
 {
-    pub fn new(driver: D, id: OpId, data: T) -> Self {
+    pub fn new(driver: Drv, id: OpId, data: T) -> Self {
         Self {
             driver,
             id,
@@ -61,10 +61,10 @@ where
     }
 }
 
-impl<T, D> Future for Op<T, D>
+impl<T, Drv> Future for Op<T, Drv>
 where
     T: Completable,
-    D: DriverHandle<Payload = T::Payload>,
+    Drv: DriverHandle<Payload = T::Payload>,
 {
     type Output = T::Output;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -77,14 +77,14 @@ where
     }
 }
 
-impl<T, D> Drop for Op<T, D>
+impl<T, Drv> Drop for Op<T, Drv>
 where
     T: Completable,
-    D: DriverHandle,
+    Drv: DriverHandle,
 {
     fn drop(&mut self) {
         self.driver.get().remove(self.id, || {
             self.data.take().expect("invalid operation state").cancel()
-        });
+        })
     }
 }
