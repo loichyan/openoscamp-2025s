@@ -1,7 +1,8 @@
 use crate::driver::{DriverHandle, OpId};
-use std::any::Any;
-use std::pin::Pin;
-use std::task::{Context, LocalWaker, Poll};
+use alloc::boxed::Box;
+use core::any::Any;
+use core::pin::Pin;
+use core::task::{Context, LocalWaker, Poll};
 
 pub(crate) enum Lifecycle<T> {
     Submitted,

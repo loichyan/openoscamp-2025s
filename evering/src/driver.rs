@@ -1,8 +1,8 @@
 use crate::op::{Cancellation, Lifecycle};
+use core::cell::RefCell;
+use core::mem;
+use core::task::{Context, Poll};
 use slab::Slab;
-use std::cell::RefCell;
-use std::mem;
-use std::task::{Context, Poll};
 
 #[derive(Clone, Copy, Debug)]
 pub struct OpId(usize);
@@ -99,7 +99,7 @@ impl<Payload> DriverInner<Payload> {
 
 pub trait DriverHandle: 'static + Unpin + Sized {
     type Payload;
-    type Ref: std::ops::Deref<Target = Driver<Self::Payload>>;
+    type Ref: core::ops::Deref<Target = Driver<Self::Payload>>;
 
     fn get(&self) -> Self::Ref;
 }

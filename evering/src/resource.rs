@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 pub trait Resource: 'static {
     type Value: ?Sized;
     fn as_ptr(&self) -> *const Self::Value;

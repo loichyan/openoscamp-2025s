@@ -1,7 +1,7 @@
-use std::alloc::Layout;
-use std::marker::PhantomData;
-use std::ptr::NonNull;
-use std::sync::atomic::{AtomicU32, Ordering};
+use alloc::alloc::Layout;
+use core::marker::PhantomData;
+use core::ptr::NonNull;
+use core::sync::atomic::{AtomicU32, Ordering};
 
 pub trait Uring {
     type A;
@@ -69,7 +69,7 @@ impl<A, B, T> UringA<A, B, T> {
             buf_b: self.0.buf_b,
             marker: PhantomData,
         };
-        std::mem::forget(self);
+        core::mem::forget(self);
         inner
     }
 
@@ -90,7 +90,7 @@ impl<A, B, T> UringB<A, B, T> {
             buf_b: self.0.buf_b,
             marker: PhantomData,
         };
-        std::mem::forget(self);
+        core::mem::forget(self);
         inner
     }
 
@@ -215,7 +215,7 @@ impl<A, B, T> RawUring<A, B, T> {
             return;
         }
         // `Acquire` enforces the deletion of the data to happen after here.
-        std::sync::atomic::fence(Ordering::Acquire);
+        core::sync::atomic::fence(Ordering::Acquire);
 
         unsafe {
             self.queue_a().drop_in_place();
@@ -344,26 +344,26 @@ impl<A, B, T> UringBuilder<A, B, T> {
 
 unsafe fn alloc_buffer<T>(size: usize) -> NonNull<T> {
     let layout = Layout::array::<T>(size).unwrap();
-    NonNull::new(unsafe { std::alloc::alloc(layout) })
-        .unwrap_or_else(|| std::alloc::handle_alloc_error(layout))
+    NonNull::new(unsafe { alloc::alloc::alloc(layout) })
+        .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout))
         .cast()
 }
 
 unsafe fn alloc<T>() -> NonNull<T> {
     let layout = Layout::new::<T>();
-    NonNull::new(unsafe { std::alloc::alloc(layout) })
-        .unwrap_or_else(|| std::alloc::handle_alloc_error(layout))
+    NonNull::new(unsafe { alloc::alloc::alloc(layout) })
+        .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout))
         .cast()
 }
 
 unsafe fn dealloc_buffer<T>(ptr: NonNull<T>, size: usize) {
     let layout = Layout::array::<T>(size).unwrap();
-    unsafe { std::alloc::dealloc(ptr.as_ptr().cast(), layout) }
+    unsafe { alloc::alloc::dealloc(ptr.as_ptr().cast(), layout) }
 }
 
 unsafe fn dealloc<T>(ptr: NonNull<T>) {
     let layout = Layout::new::<T>();
-    unsafe { std::alloc::dealloc(ptr.as_ptr().cast(), layout) }
+    unsafe { alloc::alloc::dealloc(ptr.as_ptr().cast(), layout) }
 }
 
 #[cfg(test)]
