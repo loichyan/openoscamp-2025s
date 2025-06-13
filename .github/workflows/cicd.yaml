@@ -23,6 +23,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ steps.metadata.outputs.toolchain }}
+      - name: Test docs
+        run: cargo test --doc
       - name: Build docs
         run: cargo doc --no-deps --all-features
       - name: Deploy docs
