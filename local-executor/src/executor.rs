@@ -73,7 +73,7 @@ impl Default for Executor {
     }
 }
 
-pub trait ExecutorHandle: 'static + Unpin + Sized {
+pub trait ExecutorHandle: 'static + Unpin {
     type Ref: core::ops::Deref<Target = Executor>;
 
     fn get(&self) -> Self::Ref;

@@ -381,7 +381,7 @@ impl<T> Iterator for Drain<'_, T> {
     }
 }
 
-pub struct Builder<A, B, T> {
+pub struct Builder<A, B, T = ()> {
     size_a: usize,
     size_b: usize,
     ext: T,

@@ -5,11 +5,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-pub(crate) struct Op<T: Completable>(RawOp<T, ReactorHandle>);
+pub(crate) struct Op<T: Completable>(RawOp<T>);
 
 impl<T> Op<T>
 where
-    T: Completable<Payload = RqeData>,
+    T: Completable<Driver = ReactorHandle>,
 {
     pub(crate) fn new(id: OpId, data: T) -> Self {
         Self(RawOp::new(ReactorHandle, id, data))
@@ -18,7 +18,7 @@ where
 
 impl<T> Future for Op<T>
 where
-    T: Completable<Payload = RqeData>,
+    T: Completable<Driver = ReactorHandle>,
 {
     type Output = T::Output;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -54,14 +54,14 @@ pub(crate) struct Ping;
 
 unsafe impl Completable for Ping {
     type Output = u64;
-    type Payload = RqeData;
-    fn complete(self, payload: Self::Payload) -> Self::Output {
+    type Driver = ReactorHandle;
+    fn complete(self, _drv: &ReactorHandle, payload: RqeData) -> Self::Output {
         let RqeData::Pong { token } = payload else {
             unreachable!()
         };
         token
     }
-    fn cancel(self) -> Cancellation {
+    fn cancel(self, _drv: &ReactorHandle) -> Cancellation {
         Cancellation::noop()
     }
 }
@@ -80,13 +80,13 @@ pub(crate) struct Exit;
 
 unsafe impl Completable for Exit {
     type Output = ();
-    type Payload = RqeData;
-    fn complete(self, payload: Self::Payload) -> Self::Output {
+    type Driver = ReactorHandle;
+    fn complete(self, _drv: &ReactorHandle, payload: RqeData) -> Self::Output {
         let RqeData::Exited = payload else {
             unreachable!()
         };
     }
-    fn cancel(self) -> Cancellation {
+    fn cancel(self, _drv: &ReactorHandle) -> Cancellation {
         Cancellation::noop()
     }
 }

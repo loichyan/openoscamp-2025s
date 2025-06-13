@@ -1,7 +1,7 @@
-use crate::op::{Cancellation, Lifecycle};
+use crate::op::Cancellation;
 use core::cell::RefCell;
 use core::mem;
-use core::task::{Context, Poll};
+use core::task::{Context, LocalWaker, Poll};
 use slab::Slab;
 
 #[derive(Clone, Copy, Debug)]
@@ -10,8 +10,15 @@ pub struct OpId(usize);
 pub struct Driver<P>(RefCell<DriverInner<P>>);
 
 // TODO: panic on drop if there are pending operations
-struct DriverInner<T> {
-    ops: Slab<Lifecycle<T>>,
+struct DriverInner<P> {
+    ops: Slab<Lifecycle<P>>,
+}
+
+enum Lifecycle<P> {
+    Submitted,
+    Waiting(LocalWaker),
+    Completed(P),
+    Cancelled(#[allow(dead_code)] Cancellation),
 }
 
 impl<P> Driver<P> {
@@ -97,7 +104,7 @@ impl<P> DriverInner<P> {
     }
 }
 
-pub trait DriverHandle: 'static + Unpin + Sized {
+pub trait DriverHandle: 'static + Unpin {
     type Payload;
     type Ref: core::ops::Deref<Target = Driver<Self::Payload>>;
 

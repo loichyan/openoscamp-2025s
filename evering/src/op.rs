@@ -2,13 +2,24 @@ use crate::driver::{DriverHandle, OpId};
 use alloc::boxed::Box;
 use core::any::Any;
 use core::pin::Pin;
-use core::task::{Context, LocalWaker, Poll};
+use core::task::{Context, Poll};
 
-pub(crate) enum Lifecycle<P> {
-    Submitted,
-    Waiting(LocalWaker),
-    Completed(P),
-    Cancelled(#[allow(dead_code)] Cancellation),
+/// # Safety
+///
+/// All submitted resources must be recycled.
+pub unsafe trait Completable: 'static + Unpin {
+    type Output;
+    type Driver: DriverHandle;
+
+    /// Completes this operation with the received payload.
+    fn complete(
+        self,
+        driver: &Self::Driver,
+        payload: <Self::Driver as DriverHandle>::Payload,
+    ) -> Self::Output;
+
+    /// Cancels this operation.
+    fn cancel(self, driver: &Self::Driver) -> Cancellation;
 }
 
 pub struct Cancellation(#[allow(dead_code)] Option<Box<dyn Any>>);
@@ -23,36 +34,14 @@ impl Cancellation {
     }
 }
 
-/// # Safety
-///
-/// All submitted resources must be recycled.
-pub unsafe trait Completable: 'static + Unpin {
-    type Output;
-    type Payload;
-
-    /// Completes this operation with the received payload.
-    fn complete(self, payload: Self::Payload) -> Self::Output;
-
-    /// Cancels this operation.
-    fn cancel(self) -> Cancellation;
-}
-
-pub struct Op<T, Drv>
-where
-    T: Completable,
-    Drv: DriverHandle,
-{
-    driver: Drv,
+pub struct Op<T: Completable> {
+    driver: T::Driver,
     id: OpId,
     data: Option<T>,
 }
 
-impl<T, Drv> Op<T, Drv>
-where
-    T: Completable,
-    Drv: DriverHandle,
-{
-    pub fn new(driver: Drv, id: OpId, data: T) -> Self {
+impl<T: Completable> Op<T> {
+    pub fn new(driver: T::Driver, id: OpId, data: T) -> Self {
         Self {
             driver,
             id,
@@ -61,30 +50,25 @@ where
     }
 }
 
-impl<T, Drv> Future for Op<T, Drv>
-where
-    T: Completable,
-    Drv: DriverHandle<Payload = T::Payload>,
-{
+impl<T: Completable> Future for Op<T> {
     type Output = T::Output;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.driver.get().poll(self.id, cx).map(|p| {
             self.data
                 .take()
                 .expect("invalid operation state")
-                .complete(p)
+                .complete(&self.driver, p)
         })
     }
 }
 
-impl<T, Drv> Drop for Op<T, Drv>
-where
-    T: Completable,
-    Drv: DriverHandle,
-{
+impl<T: Completable> Drop for Op<T> {
     fn drop(&mut self) {
         self.driver.get().remove(self.id, || {
-            self.data.take().expect("invalid operation state").cancel()
+            self.data
+                .take()
+                .expect("invalid operation state")
+                .cancel(&self.driver)
         })
     }
 }
