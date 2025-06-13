@@ -5,14 +5,14 @@ mod reactor;
 
 use self::op::{Rqe, RqeData, Sqe, SqeData};
 use self::reactor::Reactor;
-use evering::uring::{Uring, UringBuilder};
+use evering::uring::Uring;
 use local_executor::Executor;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::time::Duration;
 
 fn main() {
-    let (sq, mut rq) = UringBuilder::new(()).build();
+    let (sq, mut rq) = evering::uring::Builder::new(()).build();
 
     std::thread::scope(|cx| {
         cx.spawn(|| {

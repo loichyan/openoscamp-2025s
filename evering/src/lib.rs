@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 #![feature(local_waker)]
 #![cfg_attr(not(test), no_std)]
 

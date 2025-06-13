@@ -3,51 +3,82 @@ use core::marker::PhantomData;
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-pub trait Uring {
+mod private {
+    pub trait Sealed {}
+}
+
+pub trait Uring: private::Sealed {
     type A;
     type B;
     type Ext;
 
-    fn send(&mut self, val: Self::A) -> Result<(), Self::A>;
+    fn header(&self) -> &Header<Self::Ext>;
 
-    fn recv(&mut self) -> Option<Self::B>;
+    fn sender(&self) -> Queue<Self::A>;
+
+    fn receiver(&self) -> Queue<Self::B>;
 
     fn ext(&self) -> &Self::Ext
     where
-        Self::Ext: Sync;
+        Self::Ext: Sync,
+    {
+        &self.header().ext
+    }
+
+    /// Returns `true` if the remote [`Uring`] is not dropped.
+    fn is_connected(&self) -> bool {
+        self.header().rc.load(Ordering::Relaxed) == 1
+    }
+
+    fn send(&mut self, val: Self::A) -> Result<(), Self::A> {
+        unsafe { self.sender().enqueue(val) }
+    }
+
+    fn send_bulk<I>(&mut self, vals: I) -> usize
+    where
+        I: Iterator<Item = Self::A>,
+    {
+        unsafe { self.sender().enqueue_bulk(vals) }
+    }
+
+    fn recv(&mut self) -> Option<Self::B> {
+        unsafe { self.receiver().dequeue() }
+    }
+
+    fn recv_bulk(&mut self) -> Drain<Self::B> {
+        unsafe { self.receiver().dequeue_bulk() }
+    }
 }
 
-pub enum UringEither<V, T> {
+pub enum UringEither<V, T = ()> {
     A(UringA<V, V, T>),
     B(UringB<V, V, T>),
 }
 
+impl<V, T> private::Sealed for UringEither<V, T> {}
 impl<V, T> Uring for UringEither<V, T> {
     type A = V;
     type B = V;
     type Ext = T;
 
-    fn send(&mut self, val: V) -> Result<(), V> {
+    fn header(&self) -> &Header<T> {
         match self {
-            UringEither::A(a) => a.send(val),
-            UringEither::B(b) => b.send(val),
+            UringEither::A(a) => a.header(),
+            UringEither::B(b) => b.header(),
         }
     }
 
-    fn recv(&mut self) -> Option<V> {
+    fn sender(&self) -> Queue<V> {
         match self {
-            UringEither::A(a) => a.recv(),
-            UringEither::B(b) => b.recv(),
+            UringEither::A(a) => a.sender(),
+            UringEither::B(b) => b.sender(),
         }
     }
 
-    fn ext(&self) -> &T
-    where
-        T: Sync,
-    {
+    fn receiver(&self) -> Queue<V> {
         match self {
-            UringEither::A(a) => a.ext(),
-            UringEither::B(b) => b.ext(),
+            UringEither::A(a) => a.receiver(),
+            UringEither::B(b) => b.receiver(),
         }
     }
 }
@@ -103,45 +134,37 @@ impl<A, B, T> UringB<A, B, T> {
     }
 }
 
+impl<A, B, T> private::Sealed for UringA<A, B, T> {}
 impl<A, B, T> Uring for UringA<A, B, T> {
     type A = A;
     type B = B;
     type Ext = T;
 
-    fn send(&mut self, val: A) -> Result<(), A> {
-        unsafe { self.0.queue_a().enqueue(val) }
+    fn header(&self) -> &Header<T> {
+        unsafe { self.0.header() }
     }
-
-    fn recv(&mut self) -> Option<B> {
-        unsafe { self.0.queue_b().dequeue() }
+    fn sender(&self) -> Queue<Self::A> {
+        unsafe { self.0.queue_a() }
     }
-
-    fn ext(&self) -> &T
-    where
-        T: Sync,
-    {
-        unsafe { &self.0.header.as_ref().ext }
+    fn receiver(&self) -> Queue<Self::B> {
+        unsafe { self.0.queue_b() }
     }
 }
 
+impl<A, B, T> private::Sealed for UringB<A, B, T> {}
 impl<A, B, T> Uring for UringB<A, B, T> {
     type A = B;
     type B = A;
     type Ext = T;
 
-    fn send(&mut self, val: B) -> Result<(), B> {
-        unsafe { self.0.queue_b().enqueue(val) }
+    fn header(&self) -> &Header<T> {
+        unsafe { self.0.header() }
     }
-
-    fn recv(&mut self) -> Option<A> {
-        unsafe { self.0.queue_a().dequeue() }
+    fn sender(&self) -> Queue<Self::A> {
+        unsafe { self.0.queue_b() }
     }
-
-    fn ext(&self) -> &T
-    where
-        T: Sync,
-    {
-        unsafe { &self.0.header.as_ref().ext }
+    fn receiver(&self) -> Queue<Self::B> {
+        unsafe { self.0.queue_a() }
     }
 }
 
@@ -157,7 +180,7 @@ impl<A, B, T> Drop for UringB<A, B, T> {
     }
 }
 
-pub struct UringHeader<T> {
+pub struct Header<T> {
     off_a: Offsets,
     off_b: Offsets,
     rc: AtomicU32,
@@ -179,37 +202,40 @@ impl Offsets {
             ring_mask: size - 1,
         }
     }
+
+    fn inc(&self, n: u32) -> u32 {
+        n.wrapping_add(1) & self.ring_mask
+    }
 }
 
 pub struct RawUring<A, B, T> {
-    pub header: NonNull<UringHeader<T>>,
+    pub header: NonNull<Header<T>>,
     pub buf_a: NonNull<A>,
     pub buf_b: NonNull<B>,
-    marker: PhantomData<fn(T) -> T>,
-}
-
-pub struct Queue<'a, T> {
-    off: &'a Offsets,
-    buf: NonNull<T>,
+    marker: PhantomData<fn(A, B, T) -> (A, B, T)>,
 }
 
 impl<A, B, T> RawUring<A, B, T> {
+    unsafe fn header(&self) -> &Header<T> {
+        unsafe { self.header.as_ref() }
+    }
+
     unsafe fn queue_a(&self) -> Queue<'_, A> {
         Queue {
-            off: unsafe { &self.header.as_ref().off_a },
+            off: unsafe { &self.header().off_a },
             buf: self.buf_a,
         }
     }
 
     unsafe fn queue_b(&self) -> Queue<'_, B> {
         Queue {
-            off: unsafe { &self.header.as_ref().off_b },
+            off: unsafe { &self.header().off_b },
             buf: self.buf_b,
         }
     }
 
     unsafe fn drop_in_place(&mut self) {
-        let h = unsafe { self.header.as_ref() };
+        let h = unsafe { self.header() };
         // `Release` enforeces any use of the data to happen before here.
         if h.rc.fetch_sub(1, Ordering::Release) != 1 {
             return;
@@ -225,15 +251,32 @@ impl<A, B, T> RawUring<A, B, T> {
     }
 }
 
-impl<T> Queue<'_, T> {
+pub struct Queue<'a, T> {
+    off: &'a Offsets,
+    buf: NonNull<T>,
+}
+
+impl<'a, T> Queue<'a, T> {
+    pub fn len(&self) -> usize {
+        let head = self.off.head.load(Ordering::Relaxed);
+        let tail = self.off.tail.load(Ordering::Relaxed);
+        (tail.wrapping_sub(head) & self.off.ring_mask) as usize
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     // TODO: support enqueuing multiple entries
     unsafe fn enqueue(&mut self, val: T) -> Result<(), T> {
         let Self { off, buf } = self;
         debug_assert!((off.ring_mask + 1).is_power_of_two());
 
         let tail = off.tail.load(Ordering::Relaxed);
-        let next_tail = tail.wrapping_add(1) & off.ring_mask;
-        if next_tail == off.head.load(Ordering::Acquire) {
+        let head = off.head.load(Ordering::Acquire);
+
+        let next_tail = off.inc(tail);
+        if next_tail == head {
             return Err(val);
         }
 
@@ -243,16 +286,44 @@ impl<T> Queue<'_, T> {
         Ok(())
     }
 
+    unsafe fn enqueue_bulk(&mut self, mut vals: impl Iterator<Item = T>) -> usize {
+        let Self { off, buf } = self;
+        debug_assert!((off.ring_mask + 1).is_power_of_two());
+
+        let mut tail = off.tail.load(Ordering::Relaxed);
+        let head = off.head.load(Ordering::Acquire);
+
+        let mut n = 0;
+        let mut next_tail;
+        loop {
+            next_tail = off.inc(tail);
+            if next_tail == head {
+                break;
+            }
+            let Some(val) = vals.next() else {
+                break;
+            };
+            unsafe { buf.add(tail as usize).write(val) };
+            off.tail.store(next_tail, Ordering::Release);
+            n += 1;
+            tail = next_tail;
+        }
+
+        n
+    }
+
     // TODO: support dequeuing all available entries
     unsafe fn dequeue(&mut self) -> Option<T> {
         let Self { off, buf } = self;
         debug_assert!((off.ring_mask + 1).is_power_of_two());
 
         let head = off.head.load(Ordering::Relaxed);
-        if head == off.tail.load(Ordering::Acquire) {
+        let tail = off.tail.load(Ordering::Acquire);
+
+        if head == tail {
             return None;
         }
-        let next_head = head.wrapping_add(1) & off.ring_mask;
+        let next_head = off.inc(head);
 
         let val = unsafe { buf.add(head as usize).read() };
         off.head.store(next_head, Ordering::Release);
@@ -260,25 +331,64 @@ impl<T> Queue<'_, T> {
         Some(val)
     }
 
+    unsafe fn dequeue_bulk(&mut self) -> Drain<'a, T> {
+        let Self { off, buf } = self;
+        debug_assert!((off.ring_mask + 1).is_power_of_two());
+
+        let head = off.head.load(Ordering::Relaxed);
+        let tail = off.tail.load(Ordering::Acquire);
+
+        Drain {
+            off,
+            buf: *buf,
+            head,
+            tail,
+        }
+    }
+
     unsafe fn drop_in_place(&mut self) {
         debug_assert!((self.off.ring_mask + 1).is_power_of_two());
         unsafe {
-            for i in self.off.head.as_ptr().read()..self.off.tail.as_ptr().read() {
-                self.buf.add(i as usize).drop_in_place();
+            let mut head = self.off.head.as_ptr().read();
+            let tail = self.off.tail.as_ptr().read();
+            while head != tail {
+                self.buf.add(head as usize).drop_in_place();
+                head = self.off.inc(head);
             }
-            dealloc_buffer(self.buf, self.off.ring_mask as usize + 1);
+            dealloc_buffer(self.buf, (self.off.ring_mask + 1) as usize);
         }
     }
 }
 
-pub struct UringBuilder<A, B, T> {
+pub struct Drain<'a, T> {
+    off: &'a Offsets,
+    buf: NonNull<T>,
+    head: u32,
+    tail: u32,
+}
+
+impl<T> Iterator for Drain<'_, T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.head == self.tail {
+            return None;
+        }
+        let next_head = self.off.inc(self.head);
+        let val = unsafe { self.buf.add(self.head as usize).read() };
+        self.off.head.store(next_head, Ordering::Release);
+        self.head = next_head;
+        Some(val)
+    }
+}
+
+pub struct Builder<A, B, T> {
     size_a: usize,
     size_b: usize,
     ext: T,
     marker: PhantomData<(A, B)>,
 }
 
-impl<A, B, T> UringBuilder<A, B, T> {
+impl<A, B, T> Builder<A, B, T> {
     pub fn new(ext: T) -> Self {
         Self {
             size_a: 32,
@@ -313,11 +423,11 @@ impl<A, B, T> UringBuilder<A, B, T> {
         let buf_b;
 
         unsafe {
-            header = alloc::<UringHeader<T>>();
+            header = alloc::<Header<T>>();
             buf_a = alloc_buffer(size_a);
             buf_b = alloc_buffer(size_b);
 
-            header.write(UringHeader {
+            header.write(Header {
                 off_a: Offsets::new(size_a as u32),
                 off_b: Offsets::new(size_b as u32),
                 rc: AtomicU32::new(2),
@@ -372,6 +482,26 @@ mod tests {
     use std::sync::atomic::{AtomicBool, AtomicUsize};
 
     #[test]
+    fn queue_len() {
+        let mut len_a = 0;
+        let mut len_b = 0;
+        let (mut pa, mut pb) = Builder::<(), (), ()>::new(()).build();
+        for _ in 0..32 {
+            match fastrand::u8(0..4) {
+                0 => len_a += pa.send(()).map_or(0, |_| 1),
+                1 => len_b += pb.send(()).map_or(0, |_| 1),
+                2 => len_a -= pb.recv().map_or(0, |_| 1),
+                3 => len_b -= pa.recv().map_or(0, |_| 1),
+                _ => unreachable!(),
+            }
+            assert_eq!(pa.sender().len(), pb.receiver().len());
+            assert_eq!(pa.receiver().len(), pb.sender().len());
+            assert_eq!(pa.sender().len(), len_a);
+            assert_eq!(pb.sender().len(), len_b);
+        }
+    }
+
+    #[test]
     fn uring_drop() {
         static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
 
@@ -387,27 +517,27 @@ mod tests {
             .take(30)
             .collect::<Vec<_>>();
 
-        let (mut qa, mut qb) = UringBuilder::new(()).build();
+        let (mut pa, mut pb) = Builder::new(()).build();
         std::thread::scope(|cx| {
             cx.spawn(|| {
                 for i in input.iter().copied().map(DropCounter) {
                     if i.0.is_uppercase() {
-                        qa.send(i).unwrap();
+                        pa.send(i).unwrap();
                     } else {
-                        _ = qa.recv();
+                        _ = pa.recv();
                     }
                 }
-                drop(qa);
+                drop(pa);
             });
             cx.spawn(|| {
                 for i in input.iter().copied().map(DropCounter) {
                     if i.0.is_lowercase() {
-                        qb.send(i).unwrap();
+                        pb.send(i).unwrap();
                     } else {
-                        _ = qb.recv();
+                        _ = pb.recv();
                     }
                 }
-                drop(qb);
+                drop(pb);
             });
         });
 
@@ -420,22 +550,22 @@ mod tests {
             .take(30)
             .collect::<Vec<_>>();
 
-        let (mut qa, mut qb) = UringBuilder::new(()).build();
-        let (qa_finished, qb_finished) = (AtomicBool::new(false), AtomicBool::new(false));
+        let (mut pa, mut pb) = Builder::new(()).build();
+        let (pa_finished, pb_finished) = (AtomicBool::new(false), AtomicBool::new(false));
         std::thread::scope(|cx| {
             cx.spawn(|| {
                 let mut r = vec![];
                 for i in input.iter().copied() {
-                    qa.send(i).unwrap();
-                    while let Some(i) = qa.recv() {
+                    pa.send(i).unwrap();
+                    while let Some(i) = pa.recv() {
                         r.push(i);
                     }
                 }
-                qa_finished.store(true, Ordering::Release);
-                while !qb_finished.load(Ordering::Acquire) {
+                pa_finished.store(true, Ordering::Release);
+                while !pb_finished.load(Ordering::Acquire) {
                     std::thread::yield_now();
                 }
-                while let Some(i) = qa.recv() {
+                while let Some(i) = pa.recv() {
                     r.push(i);
                 }
                 assert_eq!(r, input);
@@ -443,20 +573,73 @@ mod tests {
             cx.spawn(|| {
                 let mut r = vec![];
                 for i in input.iter().copied() {
-                    qb.send(i).unwrap();
-                    while let Some(i) = qb.recv() {
+                    pb.send(i).unwrap();
+                    while let Some(i) = pb.recv() {
                         r.push(i);
                     }
                 }
-                qb_finished.store(true, Ordering::Release);
-                while !qa_finished.load(Ordering::Acquire) {
+                pb_finished.store(true, Ordering::Release);
+                while !pa_finished.load(Ordering::Acquire) {
                     std::thread::yield_now();
                 }
-                while let Some(i) = qb.recv() {
+                while let Some(i) = pb.recv() {
                     r.push(i);
                 }
                 assert_eq!(r, input);
             });
+        });
+    }
+
+    #[test]
+    fn uring_threaded_bulk() {
+        let input = std::iter::repeat_with(fastrand::alphabetic)
+            .take(30)
+            .collect::<Vec<_>>();
+
+        let (mut pa, mut pb) = Builder::new(()).build();
+        let (pa_finished, pb_finished) = (AtomicBool::new(false), AtomicBool::new(false));
+        std::thread::scope(|cx| {
+            cx.spawn(|| {
+                let mut r = vec![];
+                pa.send_bulk(input.iter().copied());
+                pa_finished.store(true, Ordering::Release);
+                while !pb_finished.load(Ordering::Acquire) {
+                    r.extend(pa.recv_bulk());
+                    std::thread::yield_now();
+                }
+                r.extend(pa.recv_bulk());
+                assert_eq!(r, input);
+            });
+            cx.spawn(|| {
+                let mut r = vec![];
+                pb.send_bulk(input.iter().copied());
+                pb_finished.store(true, Ordering::Release);
+                while !pa_finished.load(Ordering::Acquire) {
+                    r.extend(pb.recv_bulk());
+                    std::thread::yield_now();
+                }
+                r.extend(pb.recv_bulk());
+                assert_eq!(r, input);
+            });
+        });
+    }
+
+    #[test]
+    fn aaa() {
+        let items = vec![1, 2, 3, 4, 5];
+        let worker = |mut p: UringEither<i32>| {
+            p.send_bulk(items.iter().copied());
+            while p.receiver().len() != items.len() {
+                std::thread::yield_now();
+            }
+            let r = p.recv_bulk().collect::<Vec<_>>();
+            assert_eq!(r, items);
+        };
+
+        let (pa, pb) = Builder::new(()).build();
+        std::thread::scope(|cx| {
+            cx.spawn(|| worker(UringEither::A(pa)));
+            cx.spawn(|| worker(UringEither::B(pb)));
         });
     }
 }
