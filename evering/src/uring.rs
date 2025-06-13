@@ -1,3 +1,5 @@
+#![doc = include_str!("uring.md")]
+
 use alloc::alloc::Layout;
 use core::marker::PhantomData;
 use core::ptr::NonNull;

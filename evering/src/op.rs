@@ -1,3 +1,5 @@
+#![doc = include_str!("op.md")]
+
 use crate::driver::{DriverHandle, OpId};
 use alloc::boxed::Box;
 use core::any::Any;

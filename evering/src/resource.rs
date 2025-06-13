@@ -1,3 +1,5 @@
+#![doc = include_str!("resource.md")]
+
 use alloc::boxed::Box;
 
 pub trait Resource: 'static {
