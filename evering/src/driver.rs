@@ -26,11 +26,20 @@ impl<P> Driver<P> {
         Self(RefCell::new(DriverInner { ops: Slab::new() }))
     }
 
+    pub fn contains(&self, id: OpId) -> bool {
+        self.0.borrow().ops.contains(id.0)
+    }
+
     pub fn submit(&self) -> OpId {
         self.0.borrow_mut().submit()
     }
 
-    pub fn complete(&self, id: OpId, payload: P) {
+    /// Completes a operation. It returns the given `payload` as an [`Err`] if
+    /// the specified operation has been cancelled.
+    ///
+    /// The given `id` is always recycled even if the corresponding operation is
+    /// cancelled.
+    pub fn complete(&self, id: OpId, payload: P) -> Result<(), P> {
         self.0.borrow_mut().complete(id, payload)
     }
 
@@ -78,16 +87,23 @@ impl<P> DriverInner<P> {
         }
     }
 
-    fn complete(&mut self, id: OpId, payload: P) {
+    fn complete(&mut self, id: OpId, payload: P) -> Result<(), P> {
         let op = self.ops.get_mut(id.0).expect("invalid driver state");
         match mem::replace(op, Lifecycle::Submitted) {
-            Lifecycle::Submitted => *op = Lifecycle::Completed(payload),
+            Lifecycle::Submitted => {
+                *op = Lifecycle::Completed(payload);
+                Ok(())
+            },
             Lifecycle::Waiting(waker) => {
                 *op = Lifecycle::Completed(payload);
                 waker.wake();
+                Ok(())
             },
             Lifecycle::Completed(_) => unreachable!("invalid operation state"),
-            Lifecycle::Cancelled(_) => _ = self.ops.remove(id.0),
+            Lifecycle::Cancelled(_) => {
+                self.ops.remove(id.0);
+                Err(payload)
+            },
         }
     }
 

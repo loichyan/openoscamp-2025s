@@ -29,7 +29,7 @@ impl Reactor {
         let mut noop_cx = Context::from_waker(std::task::Waker::noop());
         std::future::poll_fn(move |cx| {
             while let Some(rqe) = { sender.borrow_mut().recv() } {
-                driver.complete(rqe.id, rqe.data);
+                _ = driver.complete(rqe.id, rqe.data);
             }
             match fut.as_mut().poll(&mut noop_cx) {
                 // Always wake ourself if pending as the given `Future` may wait
