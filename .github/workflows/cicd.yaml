@@ -29,6 +29,8 @@ jobs:
         if: ${{ github.ref == env.default-branch }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
+          git-config-name: github-actions[bot]
+          git-config-email: github-actions[bot]@users.noreply.github.com
           single-commit: true
           branch: gh-pages
           folder: target/doc
