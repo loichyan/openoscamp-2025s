@@ -1,3 +1,5 @@
+#![doc = include_str!("driver.md")]
+
 use crate::op::Cancellation;
 use core::cell::RefCell;
 use core::mem;
