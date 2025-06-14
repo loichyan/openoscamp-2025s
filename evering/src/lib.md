@@ -6,7 +6,7 @@ evering 是一个受 [io_uring](https://en.wikipedia.org/wiki/Io_uring) 启发�
 
 对于通信双方，至少满足以下条件时才有可能通过 evering 安全的建立连接：
 
-1. 双方有可读写的共享内存区域；
+1. 双方有可读写的共享内存区域．
 2. 双方可获知对方的存活状态．
 
 常见的场景是两个线程之间的异步通信，但这里的线程不必局限于同一进程，它可以是两个不同的用户进程，也可以是用户线程和内核线程
@@ -23,22 +23,6 @@ evering 在内部使用两个队列来传递消息，因此可以实现对等通
 
 ## 资源管理
 
-evering 鼓励通过共享内存传递数据，而请求消息则仅用来协商数据的定义和使用．在异步环境下，请求方无法及时通知响应方取消某个请求，这就可能导致意外访问过期资源．以下面的代码为例，
-
-```rust,ignore
-fn read_it(path: &str) {
-    let mut buf = [0; 32];
-    let mut fut = request_read(path, &mut buf);
-    if poll(&mut fut).is_ready() {
-        println!("read: {:?}", buf);
-    } else {
-        cancel(fut);
-        //     ^ 尽管我们在此处取消了请求，这并不意味着响应方立即就能停止对该请求的处理
-    }
-    // <- 当前函数返回，也就意味着 buf 变成了无效的内存，但响应方此后仍可能对它进行写入
-}
-```
-
-这个问题可以被更一般的描述为 `Future` 的终止安全性（Cancellation Safety[^1]）．[`resource`] 模块详细介绍了 evering 提供的几种资源管理模型．
+evering 鼓励通过共享内存传递数据，而请求消息则仅用来协商数据的定义和使用．通过共享内存传递的数据称为资源．在异步环境下，请求方无法及时通知响应方取消某个请求，这就可能导致意外访问过期资源．这个问题可以被更一般的描述为 `Future` 的终止安全性（Cancellation Safety[^1]）．[`resource`] 模块详细介绍了 evering 提供的几种资源管理模型．
 
 [^1]: <https://docs.rs/tokio/latest/tokio/macro.select.html#cancellation-safety>

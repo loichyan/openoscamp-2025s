@@ -6,38 +6,26 @@
 
 当 [`Op`] 被 [`drop`] 时，
 
-1. 如果该操作已完成，那么它对应的 [`OpId`] 和资源将被回收；
+1. 如果该操作已完成，那么它对应的 [`OpId`] 和资源将被回收．
 2. 否则，[`Completable::cancel`] 被调用，直到其生命周期结束时，它占用的资源才会被回收．
 
-每个 [`Completable`] 必须在被取消时回收全部已提交的资源，否则将会导致 UB．如果某个操作被取消，但它的生命周期一直没有结束，这是安全的，但会导致资源泄露．
-
-以下演示了如何处理操作的取消，
+每个 [`Completable`] 必须在被取消时回收全部已提交的资源，否则将会导致 UB．如果某个操作被取消，但它的生命周期一直没有结束，这是安全的，但会导致资源泄露，如下所示，
 
 ```rust
 # use evering::driver::*;
 # use evering::op::*;
-# use std::any::Any;
 # use std::rc::{Rc, Weak};
-# use std::task::{Context, Waker};
-# type DriverHandle = Weak<Driver<()>>;
-# impl Recycled {
-#     pub fn new() -> Self { Self { resource: Box::new(()) } }
+# struct Noop;
+# unsafe impl Completable for Noop {
+#     type Output = ();
+#     type Driver = Weak<Driver<()>>;
+#     fn complete(self, _: &Self::Driver, _: ()) {}
+#     fn cancel(self, _: &Self::Driver) -> Cancellation { Cancellation::noop() }
 # }
 # let drv = Rc::new(Driver::<()>::new());
 # let handle = Rc::downgrade(&drv);
-struct Recycled {
-    resource: Box<dyn Any>,
-}
-unsafe impl Completable for Recycled {
-    type Output = ();
-    type Driver = DriverHandle;
-    fn complete(self, _: &Self::Driver, _: ()) {}
-    fn cancel(self, _: &Self::Driver) -> Cancellation {
-        Cancellation::recycle(self.resource)
-    }
-}
 let id = drv.submit();
-let op = Op::new(handle.clone(), id, Recycled::new());
+let op = Op::new(handle, id, Noop);
 drop(op); // <- 被 drop 时，Op 自动被取消
 assert!(drv.contains(id));
 //          ^ Op 占用的资源将一直存在

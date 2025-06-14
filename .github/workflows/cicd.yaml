@@ -23,12 +23,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ steps.metadata.outputs.toolchain }}
+      - name: Test docs
+        run: cargo test --doc
       - name: Build docs
         run: cargo doc --no-deps --all-features
       - name: Deploy docs
         if: ${{ github.ref == env.default-branch }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
+          git-config-name: github-actions[bot]
+          git-config-email: github-actions[bot]@users.noreply.github.com
           single-commit: true
           branch: gh-pages
           folder: target/doc
