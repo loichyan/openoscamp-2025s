@@ -87,6 +87,7 @@ impl ReactorHandle {
 
 impl evering::driver::DriverHandle for ReactorHandle {
     type Payload = RqeData;
+    type Ext = ();
     type Ref = DriverRef;
     fn get(&self) -> Self::Ref {
         DriverRef(ReactorHandle::get())

@@ -13,12 +13,32 @@ pub unsafe trait Completable: 'static + Unpin {
     type Output;
     type Driver: DriverHandle;
 
-    /// Completes this operation with the received payload.
+    /// Transforms the received payload to the corresponding output.
+    ///
+    /// This function is called when the operation is completed, and the output
+    /// is then returned as [`Poll::Ready`].
     fn complete(
         self,
         driver: &Self::Driver,
         payload: <Self::Driver as DriverHandle>::Payload,
     ) -> Self::Output;
+
+    /// Completes this operation with the submitted extension.
+    ///
+    /// This function is similar to [`complete`](Self::complete), see its
+    /// documentation for more details.
+    fn complete_ext(
+        self,
+        driver: &Self::Driver,
+        payload: <Self::Driver as DriverHandle>::Payload,
+        ext: <Self::Driver as DriverHandle>::Ext,
+    ) -> Self::Output
+    where
+        Self: Sized,
+    {
+        _ = ext;
+        self.complete(driver, payload)
+    }
 
     /// Cancels this operation.
     fn cancel(self, driver: &Self::Driver) -> Cancellation;
@@ -55,11 +75,11 @@ impl<T: Completable> Op<T> {
 impl<T: Completable> Future for Op<T> {
     type Output = T::Output;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.driver.get().poll(self.id, cx).map(|p| {
+        self.driver.get().poll(self.id, cx).map(|(p, ext)| {
             self.data
                 .take()
                 .expect("invalid operation state")
-                .complete(&self.driver, p)
+                .complete_ext(&self.driver, p, ext)
         })
     }
 }
