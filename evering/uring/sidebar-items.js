@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["UringEither"],"struct":["Builder","Drain","Header","Queue","RawUring","UringA","UringB"],"trait":["Uring"],"type":["Receiver","Sender"]};
