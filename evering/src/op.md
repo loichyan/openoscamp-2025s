@@ -30,7 +30,7 @@ drop(op); // <- 被 drop 时，Op 自动被取消
 assert!(drv.contains(id));
 //          ^ Op 占用的资源将一直存在
 assert!(drv.complete(id, ()).is_err());
-//                           ^ 此时完成该 Op 的生命周期会返回错误
+//                           ^ 完成被取消的 Op 会返回错误
 assert!(!drv.contains(id));
 //      ^ 直到生命周期结束它占用的资源才被回收
 ```

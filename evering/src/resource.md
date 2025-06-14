@@ -1,6 +1,6 @@
 此模块用于管理共享的内存资源．
 
-请求方通过指针将资源提交给响应方可以达到 zero-copy 的高效数据传递．但在异步上下文中，请求方无法及时通知响应方取消某个请求，这就可能导致意外访问过期资源，如下所示，
+请求方通过指针将资源提交给响应方可以达到 zero-copy 的高效数据传递．但在异步上下文中，提前终止一个 [`Future`] 可能导致意外访问过期资源，如下所示，
 
 ```rust,ignore
 fn read_it(path: &str) {
@@ -20,7 +20,7 @@ fn read_it(path: &str) {
 
 ## 资源
 
-[`Resource`] 和 [`ResourceMut`] 分别定义了只读与可写的资源，资源通常是被分配在内存堆上的数．二者都要求实现者返回稳定的指针，即不随资源所有权的转移而变化的指针，例如 [`Vec`] 和 [`String`]．
+[`Resource`] 和 [`ResourceMut`] 分别定义了只读与可写的资源，资源通常是被分配在内存堆上的数据．二者都要求实现者返回稳定的指针，即不随资源所有权的转移而变化的指针，例如 [`Vec`] 和 [`String`]．
 
 ## 基于所有权借用的模型
 
@@ -55,7 +55,7 @@ fn read_it(path: &str) {
 # let recv_response = || Response { id, payload: Box::new(()) };
 struct Request {
     resource: Box<dyn Any>,
-    // ... 一个操作可能占用许多资源
+    // ... 一个操作可能占用多种资源
 }
 unsafe impl Completable for Request {
     type Output = Box<dyn Any>;
@@ -74,15 +74,15 @@ struct Response {
 }
 
 let data = Request::new();
-send_request(&raw const *data.resource); // <- 将该操作发送给响应端
+send_request(&raw const *data.resource); // <- 将该请求发送给响应端
 let op = make_op(data);
 spawn_task(op); // <- 后台轮询 Op，继续处理其它工作
 
 // ...
 
-let data = recv_response(); // <-直到接收响应，并完成该操作
+let data = recv_response(); // <-直到接收响应，随后完成该操作
 drv.complete(data.id, data.payload).ok();
-//  ^ 资源已通过 Cancellation 自动回收，故此处可以忽略返回的错误
+//  ^ 被占用的资源已通过 Cancellation 自动回收，故此处可以忽略返回的错误
 ```
 
 **优点**:
@@ -102,10 +102,10 @@ drv.complete(data.id, data.payload).ok();
 **定义**:
 
 1. 资源的所有权归属使用方．
-2. 资源的所有权通过连接在通信双方转移．
+2. 资源的所有权通过连接在通信双方之间转移．
 3. 一方确认资源不需要再被转移时，它可以选择回收资源．
 
-此模型类比于 Rust 中的移动 `move` 语义．evering 并没有直接实现这种模型，相反，此机制依赖与通信双方的配合，如下所示，
+此模型类比于 Rust 中的移动 `move` 语义．evering 并没有直接实现此模型，相反，这种机制依赖与通信双方的配合，如下所示，
 
 ```rust
 # use evering::driver::*;
@@ -124,7 +124,8 @@ drv.complete(data.id, data.payload).ok();
 # let send_request = |_: * mut dyn Any| {};
 # let recv_response = || Response { id, resource: Box::leak(Box::new(())) };
 struct Request {
-    resource: *mut dyn Any, // <- 请求方不应独占资源所有权
+    resource: *mut dyn Any,
+    //        ^ 请求方不应独占资源所有权
 }
 unsafe impl Completable for Request {
     type Output = ();
@@ -148,13 +149,13 @@ struct Response {
 }
 
 let mut data = Request::new();
-send_request(data.resource); // <- 将该操作发送给响应端
+send_request(data.resource); // <- 响应方会得到该资源的所有权，并对其进行更新
 let op = make_op(data);
 spawn_task(op); // <- 后台轮询 Op，继续处理其它工作
 
 // ...
 
-let data = recv_response(); // <-直到接收响应，并完成该操作
+let data = recv_response(); // <- 接收响应随后完成该操作
 if drv.complete(data.id, ()).is_err() {
     // SAFETY:
     // 和上述类似，由于该资源对应的 Op 已被取消，系统中不再有对它的访问．
@@ -173,5 +174,7 @@ if drv.complete(data.id, ()).is_err() {
 2. 通信双方必须谨慎的、手动的控制资源的释放．
 
 [`Cancellation`]: crate::op::Cancellation
+[`Completable::cancel`]: crate::op::Completable::cancel
+[`Future`]: core::future::Future
 [`String`]: alloc::string::String
 [`Vec`]: alloc::vec::Vec
