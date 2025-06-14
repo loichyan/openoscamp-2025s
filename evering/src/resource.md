@@ -43,19 +43,19 @@ fn read_it(path: &str) {
 # use std::any::Any;
 # use std::rc::{Rc, Weak};
 # type DriverHandle = Weak<Driver<Box<dyn Any>>>;
-# impl Request {
-#     pub fn new() -> Self { Self { resource: Box::new(()) } }
-# }
 # fn spawn_task<T>(_: T) {}
 # let drv = Rc::new(Driver::<Box<dyn Any>>::new());
 # let handle = Rc::downgrade(&drv);
-# let id = drv.submit();
-# let make_op = |data: Request| Op::new(handle.clone(), id, data);
-# let send_request = |_: * const dyn Any| {};
-# let recv_response = || Response { id, payload: Box::new(()) };
+# let make_resource = || Box::new(()) as Box<dyn Any>;
+# let make_op = |id: OpId, data: Request| Op::new(handle.clone(), id, data);
+# let send_request = |_: *const dyn Any| {};
+# let recv_response = || Response { payload: Box::new(()) };
 struct Request {
     resource: Box<dyn Any>,
     // ... 一个操作可能占用多种资源
+}
+struct Response {
+    payload: Box<dyn Any>,
 }
 unsafe impl Completable for Request {
     type Output = Box<dyn Any>;
@@ -68,20 +68,18 @@ unsafe impl Completable for Request {
         //                    ^ 一般来说，所有按指针传递的资源都需要回收
     }
 }
-struct Response {
-    id: OpId,
-    payload: Box<dyn Any>,
-}
 
-let data = Request::new();
-send_request(&raw const *data.resource); // <- 将该请求发送给响应端
-let op = make_op(data);
+let resource = make_resource();
+send_request(&raw const *resource); // <- 将该请求发送给响应端
+
+let id = drv.submit();
+let op = make_op(id, Request { resource });
 spawn_task(op); // <- 后台轮询 Op，继续处理其它工作
 
 // ...
 
 let data = recv_response(); // <-直到接收响应，随后完成该操作
-drv.complete(data.id, data.payload).ok();
+drv.complete(id, data.payload).ok();
 //  ^ 被占用的资源已通过 Cancellation 自动回收，故此处可以忽略返回的错误
 ```
 
@@ -113,19 +111,19 @@ drv.complete(data.id, data.payload).ok();
 # use std::any::Any;
 # use std::rc::{Rc, Weak};
 # type DriverHandle = Weak<Driver<()>>;
-# impl Request {
-#     pub fn new() -> Self { Self { resource: Box::leak(Box::new(())) } }
-# }
 # fn spawn_task<T>(_: T) {}
 # let drv = Rc::new(Driver::<()>::new());
 # let handle = Rc::downgrade(&drv);
-# let id = drv.submit();
-# let make_op = |data: Request| Op::new(handle.clone(), id, data);
-# let send_request = |_: * mut dyn Any| {};
-# let recv_response = || Response { id, resource: Box::leak(Box::new(())) };
+# let make_resource = || Box::leak(Box::new(())) as *mut dyn Any;
+# let make_op = |id: OpId, data: Request| Op::new(handle.clone(), id, data);
+# let send_request = |_: *mut dyn Any| {};
+# let recv_response = || Response { resource: Box::leak(Box::new(())) };
 struct Request {
     resource: *mut dyn Any,
     //        ^ 请求方不应独占资源所有权
+}
+struct Response {
+    resource: *mut dyn Any, // <- 写入资源后，响应方需要返还所有权
 }
 unsafe impl Completable for Request {
     type Output = ();
@@ -143,20 +141,18 @@ unsafe impl Completable for Request {
         //            ^ 这里不需要回收任何资源
     }
 }
-struct Response {
-    id: OpId,
-    resource: *mut dyn Any, // <- 写入资源后，响应方需要返还所有权
-}
 
-let mut data = Request::new();
-send_request(data.resource); // <- 响应方会得到该资源的所有权，并对其进行更新
-let op = make_op(data);
+let resource = make_resource();
+send_request(resource); // <- 响应方会得到该资源的所有权，并对其进行更新
+
+let id = drv.submit();
+let op = make_op(id, Request { resource });
 spawn_task(op); // <- 后台轮询 Op，继续处理其它工作
 
 // ...
 
 let data = recv_response(); // <- 接收响应随后完成该操作
-if drv.complete(data.id, ()).is_err() {
+if drv.complete(id, ()).is_err() {
     // SAFETY:
     // 和上述类似，由于该资源对应的 Op 已被取消，系统中不再有对它的访问．
     unsafe { data.resource.drop_in_place() }
@@ -173,8 +169,62 @@ if drv.complete(data.id, ()).is_err() {
 1. 通信双方需要提前协商资源所有权的归属．
 2. 通信双方必须谨慎的、手动的控制资源的释放．
 
+此外，我们也可以利用 [`Driver`] 提供的 extension 机制来克服 *(1)* 所述的缺点，如下所示，
+
+```rust
+# use evering::driver::*;
+# use evering::op::*;
+# use std::any::Any;
+# use std::rc::{Rc, Weak};
+# type DriverHandle = Weak<Driver<(), *mut dyn Any>>;
+# fn spawn_task<T>(_: T) {}
+# let drv = Rc::new(Driver::<(), *mut dyn Any>::new());
+# let handle = Rc::downgrade(&drv);
+# let make_resource = || Box::leak(Box::new(())) as *mut dyn Any;
+# let make_op = |id: OpId, data: Request| Op::new(handle.clone(), id, data);
+# let send_request = |_: *mut dyn Any| {};
+# let recv_response = || Response {};
+struct Request {
+    // resource: *mut dyn Any,
+}
+struct Response {
+    // resource: *mut dyn Any,
+}
+unsafe impl Completable for Request {
+    type Output = ();
+    type Driver = DriverHandle;
+    fn complete(self, _: &Self::Driver, _: ()) {
+        unreachable!() // <- 此函数不会被调用，如果实现了 complete_ext
+    }
+    fn complete_ext(self, _: &Self::Driver, _: (), resource: *mut dyn Any) {
+        // SAFETY: 同上所述
+        unsafe { resource.drop_in_place() }
+    }
+    fn cancel(self, _: &Self::Driver) -> Cancellation {
+        Cancellation::noop()
+    }
+}
+
+let resource = make_resource();
+send_request(resource);
+
+let id = drv.submit_ext(resource);
+let op = make_op(id, Request {}); // <- 不再需要储存资源指针
+spawn_task(op);
+
+// ...
+
+let data = recv_response();
+if let Err((_, resource)) = drv.complete_ext(id, ()) {
+    //         ^ 这里可以取得对资源的指针
+    // SAFETY: 同上所述
+    unsafe { resource.drop_in_place() }
+}
+```
+
 [`Cancellation`]: crate::op::Cancellation
 [`Completable::cancel`]: crate::op::Completable::cancel
+[`Driver`]: crate::driver::Driver
 [`Future`]: core::future::Future
 [`String`]: alloc::string::String
 [`Vec`]: alloc::vec::Vec

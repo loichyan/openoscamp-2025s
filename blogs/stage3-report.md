@@ -45,6 +45,7 @@
 
 以上便是第三阶段的主要收获，接下来需要进一步研究 IRQ 机制与 Rust 异步的集成，以及 io_uring 模型的实现和应用，最终达成对 ArceOS 内核的异步化改造．
 
+<!-- dprint-ignore-start -->
 [^1]: <https://osdev.wiki/wiki/Thread>
 [^2]: <https://rust-lang.github.io/async-book/04_pinning/01_chapter.html>
 [^3]: <https://rcore-os.cn/rCore-Tutorial-Book-v3/chapter9/2device-driver-3.html>
@@ -56,3 +57,4 @@
 [^9]: <https://www.kernel.org/doc/html/v6.1/scheduler/sched-domains.html>
 [^10]: <https://rcore-os.cn/rCore-Tutorial-Book-v3/chapter3/3multiprogramming.html>
 [^11]: <https://rcore-os.cn/rCore-Tutorial-Book-v3/chapter3/4time-sharing-system.html>
+<!-- dprint-ignore-end -->
