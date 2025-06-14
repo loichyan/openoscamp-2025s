@@ -52,32 +52,32 @@ pub trait Uring: private::Sealed {
     }
 }
 
-pub enum UringEither<V, T = ()> {
-    A(UringA<V, V, T>),
-    B(UringB<V, V, T>),
+pub enum UringEither<T, Ext = ()> {
+    A(UringA<T, T, Ext>),
+    B(UringB<T, T, Ext>),
 }
 
-impl<V, T> private::Sealed for UringEither<V, T> {}
-impl<V, T> Uring for UringEither<V, T> {
-    type A = V;
-    type B = V;
-    type Ext = T;
+impl<T, Ext> private::Sealed for UringEither<T, Ext> {}
+impl<T, Ext> Uring for UringEither<T, Ext> {
+    type A = T;
+    type B = T;
+    type Ext = Ext;
 
-    fn header(&self) -> &Header<T> {
+    fn header(&self) -> &Header<Ext> {
         match self {
             UringEither::A(a) => a.header(),
             UringEither::B(b) => b.header(),
         }
     }
 
-    fn sender(&self) -> Queue<V> {
+    fn sender(&self) -> Queue<T> {
         match self {
             UringEither::A(a) => a.sender(),
             UringEither::B(b) => b.sender(),
         }
     }
 
-    fn receiver(&self) -> Queue<V> {
+    fn receiver(&self) -> Queue<T> {
         match self {
             UringEither::A(a) => a.receiver(),
             UringEither::B(b) => b.receiver(),
@@ -85,17 +85,17 @@ impl<V, T> Uring for UringEither<V, T> {
     }
 }
 
-pub type Sender<Sqe, Rqe, T = ()> = UringA<Sqe, Rqe, T>;
-pub type Receiver<Sqe, Rqe, T = ()> = UringB<Sqe, Rqe, T>;
+pub type Sender<Sqe, Rqe, Ext = ()> = UringA<Sqe, Rqe, Ext>;
+pub type Receiver<Sqe, Rqe, Ext = ()> = UringB<Sqe, Rqe, Ext>;
 
-pub struct UringA<A, B, T = ()>(RawUring<A, B, T>);
-pub struct UringB<A, B, T = ()>(RawUring<A, B, T>);
+pub struct UringA<A, B, Ext = ()>(RawUring<A, B, Ext>);
+pub struct UringB<A, B, Ext = ()>(RawUring<A, B, Ext>);
 
-unsafe impl<A: Send, B: Send, T: Send> Send for UringA<A, B, T> {}
-unsafe impl<A: Send, B: Send, T: Send> Send for UringB<A, B, T> {}
+unsafe impl<A: Send, B: Send, Ext: Send> Send for UringA<A, B, Ext> {}
+unsafe impl<A: Send, B: Send, Ext: Send> Send for UringB<A, B, Ext> {}
 
-impl<A, B, T> UringA<A, B, T> {
-    pub fn into_raw(self) -> RawUring<A, B, T> {
+impl<A, B, Ext> UringA<A, B, Ext> {
+    pub fn into_raw(self) -> RawUring<A, B, Ext> {
         let inner = RawUring {
             header: self.0.header,
             buf_a: self.0.buf_a,
@@ -110,13 +110,13 @@ impl<A, B, T> UringA<A, B, T> {
     ///
     /// The specified [`RawUring`] must be a valid value returned from
     /// [`into_raw`](Self::into_raw).
-    pub unsafe fn from_raw(uring: RawUring<A, B, T>) -> Self {
+    pub unsafe fn from_raw(uring: RawUring<A, B, Ext>) -> Self {
         Self(uring)
     }
 }
 
-impl<A, B, T> UringB<A, B, T> {
-    pub fn into_raw(self) -> RawUring<A, B, T> {
+impl<A, B, Ext> UringB<A, B, Ext> {
+    pub fn into_raw(self) -> RawUring<A, B, Ext> {
         let inner = RawUring {
             header: self.0.header,
             buf_a: self.0.buf_a,
@@ -131,18 +131,18 @@ impl<A, B, T> UringB<A, B, T> {
     ///
     /// The specified [`RawUring`] must be a valid value returned from
     /// [`into_raw`](Self::into_raw).
-    pub unsafe fn from_raw(uring: RawUring<A, B, T>) -> Self {
+    pub unsafe fn from_raw(uring: RawUring<A, B, Ext>) -> Self {
         Self(uring)
     }
 }
 
-impl<A, B, T> private::Sealed for UringA<A, B, T> {}
-impl<A, B, T> Uring for UringA<A, B, T> {
+impl<A, B, Ext> private::Sealed for UringA<A, B, Ext> {}
+impl<A, B, Ext> Uring for UringA<A, B, Ext> {
     type A = A;
     type B = B;
-    type Ext = T;
+    type Ext = Ext;
 
-    fn header(&self) -> &Header<T> {
+    fn header(&self) -> &Header<Ext> {
         unsafe { self.0.header() }
     }
     fn sender(&self) -> Queue<Self::A> {
@@ -153,13 +153,13 @@ impl<A, B, T> Uring for UringA<A, B, T> {
     }
 }
 
-impl<A, B, T> private::Sealed for UringB<A, B, T> {}
-impl<A, B, T> Uring for UringB<A, B, T> {
+impl<A, B, Ext> private::Sealed for UringB<A, B, Ext> {}
+impl<A, B, Ext> Uring for UringB<A, B, Ext> {
     type A = B;
     type B = A;
-    type Ext = T;
+    type Ext = Ext;
 
-    fn header(&self) -> &Header<T> {
+    fn header(&self) -> &Header<Ext> {
         unsafe { self.0.header() }
     }
     fn sender(&self) -> Queue<Self::A> {
@@ -170,23 +170,23 @@ impl<A, B, T> Uring for UringB<A, B, T> {
     }
 }
 
-impl<A, B, T> Drop for UringA<A, B, T> {
+impl<A, B, Ext> Drop for UringA<A, B, Ext> {
     fn drop(&mut self) {
         unsafe { self.0.drop_in_place() }
     }
 }
 
-impl<A, B, T> Drop for UringB<A, B, T> {
+impl<A, B, Ext> Drop for UringB<A, B, Ext> {
     fn drop(&mut self) {
         unsafe { self.0.drop_in_place() }
     }
 }
 
-pub struct Header<T> {
+pub struct Header<Ext = ()> {
     off_a: Offsets,
     off_b: Offsets,
     rc: AtomicU32,
-    ext: T,
+    ext: Ext,
 }
 
 struct Offsets {
@@ -210,15 +210,15 @@ impl Offsets {
     }
 }
 
-pub struct RawUring<A, B, T> {
-    pub header: NonNull<Header<T>>,
+pub struct RawUring<A, B, Ext = ()> {
+    pub header: NonNull<Header<Ext>>,
     pub buf_a: NonNull<A>,
     pub buf_b: NonNull<B>,
-    marker: PhantomData<fn(A, B, T) -> (A, B, T)>,
+    marker: PhantomData<fn(A, B, Ext) -> (A, B, Ext)>,
 }
 
-impl<A, B, T> RawUring<A, B, T> {
-    unsafe fn header(&self) -> &Header<T> {
+impl<A, B, Ext> RawUring<A, B, Ext> {
+    unsafe fn header(&self) -> &Header<Ext> {
         unsafe { self.header.as_ref() }
     }
 
@@ -383,15 +383,22 @@ impl<T> Iterator for Drain<'_, T> {
     }
 }
 
-pub struct Builder<A, B, T = ()> {
+pub struct Builder<A, B, Ext = ()> {
     size_a: usize,
     size_b: usize,
-    ext: T,
+    ext: Ext,
     marker: PhantomData<(A, B)>,
 }
 
-impl<A, B, T> Builder<A, B, T> {
-    pub fn new(ext: T) -> Self {
+impl<A, B, Ext> Builder<A, B, Ext> {
+    pub fn new() -> Self
+    where
+        Ext: Default,
+    {
+        Self::new_ext(Ext::default())
+    }
+
+    pub fn new_ext(ext: Ext) -> Self {
         Self {
             size_a: 32,
             size_b: 32,
@@ -412,7 +419,7 @@ impl<A, B, T> Builder<A, B, T> {
         self
     }
 
-    pub fn build(self) -> (UringA<A, B, T>, UringB<A, B, T>) {
+    pub fn build(self) -> (UringA<A, B, Ext>, UringB<A, B, Ext>) {
         let Self {
             size_a,
             size_b,
@@ -425,7 +432,7 @@ impl<A, B, T> Builder<A, B, T> {
         let buf_b;
 
         unsafe {
-            header = alloc::<Header<T>>();
+            header = alloc::<Header<Ext>>();
             buf_a = alloc_buffer(size_a);
             buf_b = alloc_buffer(size_b);
 
@@ -451,6 +458,12 @@ impl<A, B, T> Builder<A, B, T> {
         });
 
         (ring_a, ring_b)
+    }
+}
+
+impl<A, B, Ext: Default> Default for Builder<A, B, Ext> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -487,7 +500,7 @@ mod tests {
     fn queue_len() {
         let mut len_a = 0;
         let mut len_b = 0;
-        let (mut pa, mut pb) = Builder::<(), (), ()>::new(()).build();
+        let (mut pa, mut pb) = Builder::<(), ()>::new().build();
         for _ in 0..32 {
             match fastrand::u8(0..4) {
                 0 => len_a += pa.send(()).map_or(0, |_| 1),
@@ -519,7 +532,7 @@ mod tests {
             .take(30)
             .collect::<Vec<_>>();
 
-        let (mut pa, mut pb) = Builder::new(()).build();
+        let (mut pa, mut pb) = Builder::<DropCounter, DropCounter>::new().build();
         std::thread::scope(|cx| {
             cx.spawn(|| {
                 for i in input.iter().copied().map(DropCounter) {
@@ -552,7 +565,7 @@ mod tests {
             .take(30)
             .collect::<Vec<_>>();
 
-        let (mut pa, mut pb) = Builder::new(()).build();
+        let (mut pa, mut pb) = Builder::<char, char>::new().build();
         let (pa_finished, pb_finished) = (AtomicBool::new(false), AtomicBool::new(false));
         std::thread::scope(|cx| {
             cx.spawn(|| {
@@ -598,7 +611,7 @@ mod tests {
             .take(30)
             .collect::<Vec<_>>();
 
-        let (mut pa, mut pb) = Builder::new(()).build();
+        let (mut pa, mut pb) = Builder::<char, char>::new().build();
         let (pa_finished, pb_finished) = (AtomicBool::new(false), AtomicBool::new(false));
         std::thread::scope(|cx| {
             cx.spawn(|| {
@@ -638,7 +651,7 @@ mod tests {
             assert_eq!(r, items);
         };
 
-        let (pa, pb) = Builder::new(()).build();
+        let (pa, pb) = Builder::new().build();
         std::thread::scope(|cx| {
             cx.spawn(|| worker(UringEither::A(pa)));
             cx.spawn(|| worker(UringEither::B(pb)));

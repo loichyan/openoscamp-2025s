@@ -12,7 +12,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 fn main() {
-    let (sq, mut rq) = evering::uring::Builder::new(()).build();
+    let (sq, mut rq) = evering::uring::Builder::new().build();
 
     std::thread::scope(|cx| {
         cx.spawn(|| {

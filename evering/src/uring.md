@@ -11,7 +11,7 @@
 # use std::sync::atomic::AtomicBool;
 let items = vec![1, 2, 3, 4, 5];
 // 初始化发送端 tx 和接收端 rx
-let (mut tx, mut rx) = Builder::new(()).build();
+let (mut tx, mut rx) = Builder::<i32, i32>::new().build();
 std::thread::scope(|cx| {
     cx.spawn(|| {
         // 将请求批量发送至接收端
@@ -59,7 +59,7 @@ let worker = |mut p: UringEither<i32>| {
     }
     assert_eq!(r, items);
 };
-let (pa, pb) = Builder::new(()).build();
+let (pa, pb) = Builder::<i32, i32>::new().build();
 std::thread::scope(|cx| {
     cx.spawn(|| worker(UringEither::A(pa)));
     cx.spawn(|| worker(UringEither::B(pb)));
