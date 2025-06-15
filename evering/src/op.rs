@@ -25,8 +25,7 @@ pub unsafe trait Completable: 'static + Unpin {
 
     /// Completes this operation with the submitted extension.
     ///
-    /// This function is similar to [`complete`](Self::complete), see its
-    /// documentation for more details.
+    /// For more information, see [`complete`](Self::complete).
     fn complete_ext(
         self,
         driver: &Self::Driver,

@@ -62,8 +62,7 @@ impl<P, Ext> Driver<P, Ext> {
 
     /// Completes a operation with the submitted extension.
     ///
-    /// This function is similar to [`complete`](Self::complete), see its
-    /// documentation for more details.
+    /// For more information, see [`complete`](Self::complete).
     pub fn complete_ext(&self, id: OpId, payload: P) -> Result<(), (P, Ext)> {
         self.0.borrow_mut().complete(id, payload)
     }
