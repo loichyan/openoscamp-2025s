@@ -638,23 +638,4 @@ mod tests {
             });
         });
     }
-
-    #[test]
-    fn aaa() {
-        let items = vec![1, 2, 3, 4, 5];
-        let worker = |mut p: UringEither<i32>| {
-            p.send_bulk(items.iter().copied());
-            while p.receiver().len() != items.len() {
-                std::thread::yield_now();
-            }
-            let r = p.recv_bulk().collect::<Vec<_>>();
-            assert_eq!(r, items);
-        };
-
-        let (pa, pb) = Builder::new().build();
-        std::thread::scope(|cx| {
-            cx.spawn(|| worker(UringEither::A(pa)));
-            cx.spawn(|| worker(UringEither::B(pb)));
-        });
-    }
 }
