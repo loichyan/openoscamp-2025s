@@ -29,7 +29,7 @@ pub trait Uring: private::Sealed {
 
     /// Returns `true` if the remote [`Uring`] is not dropped.
     fn is_connected(&self) -> bool {
-        self.header().rc.load(Ordering::Relaxed) == 1
+        self.header().rc.load(Ordering::Relaxed) > 1
     }
 
     fn send(&mut self, val: Self::A) -> Result<(), Self::A> {
