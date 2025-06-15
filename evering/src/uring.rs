@@ -1,6 +1,7 @@
 #![doc = include_str!("uring.md")]
 
 use alloc::alloc::Layout;
+use core::fmt;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -8,6 +9,23 @@ use core::sync::atomic::{AtomicU32, Ordering};
 mod private {
     pub trait Sealed {}
 }
+
+#[non_exhaustive]
+pub struct DisposeError {}
+
+impl fmt::Debug for DisposeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DisposeError").finish_non_exhaustive()
+    }
+}
+
+impl fmt::Display for DisposeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Uring is still connected")
+    }
+}
+
+impl core::error::Error for DisposeError {}
 
 pub trait Uring: private::Sealed {
     type A;
@@ -94,46 +112,50 @@ pub struct UringB<A, B, Ext = ()>(RawUring<A, B, Ext>);
 unsafe impl<A: Send, B: Send, Ext: Send> Send for UringA<A, B, Ext> {}
 unsafe impl<A: Send, B: Send, Ext: Send> Send for UringB<A, B, Ext> {}
 
-impl<A, B, Ext> UringA<A, B, Ext> {
-    pub fn into_raw(self) -> RawUring<A, B, Ext> {
-        let inner = RawUring {
-            header: self.0.header,
-            buf_a: self.0.buf_a,
-            buf_b: self.0.buf_b,
-            marker: PhantomData,
-        };
-        core::mem::forget(self);
-        inner
-    }
+macro_rules! common_methods {
+    ($A:ident, $B:ident, $Ext:ident) => {
+        pub fn into_raw(self) -> RawUring<A, B, Ext> {
+            let inner = RawUring {
+                header: self.0.header,
+                buf_a: self.0.buf_a,
+                buf_b: self.0.buf_b,
+                marker: PhantomData,
+            };
+            core::mem::forget(self);
+            inner
+        }
 
-    /// # Safety
-    ///
-    /// The specified [`RawUring`] must be a valid value returned from
-    /// [`into_raw`](Self::into_raw).
-    pub unsafe fn from_raw(uring: RawUring<A, B, Ext>) -> Self {
-        Self(uring)
-    }
+        /// Drops this [`Uring`] and all enqueued entries.
+        ///
+        /// It does nothing and returns an error if `self` is still connected.
+        /// Otherwise, the returned [`RawUring`] is safe to deallocate without
+        /// synchronization.
+        pub fn dispose_raw(self) -> Result<RawUring<A, B, Ext>, DisposeError> {
+            let mut raw = self.into_raw();
+            unsafe {
+                match raw.dispose() {
+                    Ok(_) => Ok(raw),
+                    Err(e) => Err(e),
+                }
+            }
+        }
+
+        /// # Safety
+        ///
+        /// The specified [`RawUring`] must be a valid value returned from
+        /// [`into_raw`](Self::into_raw).
+        pub unsafe fn from_raw(uring: RawUring<A, B, Ext>) -> Self {
+            Self(uring)
+        }
+    };
+}
+
+impl<A, B, Ext> UringA<A, B, Ext> {
+    common_methods!(A, B, Ext);
 }
 
 impl<A, B, Ext> UringB<A, B, Ext> {
-    pub fn into_raw(self) -> RawUring<A, B, Ext> {
-        let inner = RawUring {
-            header: self.0.header,
-            buf_a: self.0.buf_a,
-            buf_b: self.0.buf_b,
-            marker: PhantomData,
-        };
-        core::mem::forget(self);
-        inner
-    }
-
-    /// # Safety
-    ///
-    /// The specified [`RawUring`] must be a valid value returned from
-    /// [`into_raw`](Self::into_raw).
-    pub unsafe fn from_raw(uring: RawUring<A, B, Ext>) -> Self {
-        Self(uring)
-    }
+    common_methods!(A, B, Ext);
 }
 
 impl<A, B, Ext> private::Sealed for UringA<A, B, Ext> {}
@@ -189,6 +211,16 @@ pub struct Header<Ext = ()> {
     ext: Ext,
 }
 
+impl<Ext> Header<Ext> {
+    pub fn size_a(&self) -> usize {
+        self.off_a.ring_mask as usize + 1
+    }
+
+    pub fn size_b(&self) -> usize {
+        self.off_b.ring_mask as usize + 1
+    }
+}
+
 struct Offsets {
     head: AtomicU32,
     tail: AtomicU32,
@@ -218,6 +250,15 @@ pub struct RawUring<A, B, Ext = ()> {
 }
 
 impl<A, B, Ext> RawUring<A, B, Ext> {
+    pub const fn dangling() -> Self {
+        Self {
+            header: NonNull::dangling(),
+            buf_a: NonNull::dangling(),
+            buf_b: NonNull::dangling(),
+            marker: PhantomData,
+        }
+    }
+
     unsafe fn header(&self) -> &Header<Ext> {
         unsafe { self.header.as_ref() }
     }
@@ -236,11 +277,12 @@ impl<A, B, Ext> RawUring<A, B, Ext> {
         }
     }
 
-    unsafe fn drop_in_place(&mut self) {
-        let h = unsafe { self.header() };
+    unsafe fn dispose(&mut self) -> Result<(), DisposeError> {
+        let rc = unsafe { &self.header().rc };
+        debug_assert!(rc.load(Ordering::Relaxed) >= 1);
         // `Release` enforeces any use of the data to happen before here.
-        if h.rc.fetch_sub(1, Ordering::Release) != 1 {
-            return;
+        if rc.fetch_sub(1, Ordering::Release) != 1 {
+            return Err(DisposeError {});
         }
         // `Acquire` enforces the deletion of the data to happen after here.
         core::sync::atomic::fence(Ordering::Acquire);
@@ -248,7 +290,18 @@ impl<A, B, Ext> RawUring<A, B, Ext> {
         unsafe {
             self.queue_a().drop_in_place();
             self.queue_b().drop_in_place();
-            dealloc(self.header);
+        }
+        Ok(())
+    }
+
+    unsafe fn drop_in_place(&mut self) {
+        unsafe {
+            if self.dispose().is_ok() {
+                let h = self.header.as_ref();
+                dealloc_buffer(self.buf_a, h.off_a.ring_mask as usize + 1);
+                dealloc_buffer(self.buf_b, h.off_b.ring_mask as usize + 1);
+                dealloc(self.header);
+            }
         }
     }
 }
@@ -269,7 +322,6 @@ impl<'a, T> Queue<'a, T> {
         self.len() == 0
     }
 
-    // TODO: support enqueuing multiple entries
     unsafe fn enqueue(&mut self, val: T) -> Result<(), T> {
         let Self { off, buf } = self;
         debug_assert!((off.ring_mask + 1).is_power_of_two());
@@ -314,7 +366,6 @@ impl<'a, T> Queue<'a, T> {
         n
     }
 
-    // TODO: support dequeuing all available entries
     unsafe fn dequeue(&mut self) -> Option<T> {
         let Self { off, buf } = self;
         debug_assert!((off.ring_mask + 1).is_power_of_two());
@@ -357,7 +408,6 @@ impl<'a, T> Queue<'a, T> {
                 self.buf.add(head as usize).drop_in_place();
                 head = self.off.inc(head);
             }
-            dealloc_buffer(self.buf, (self.off.ring_mask + 1) as usize);
         }
     }
 }
@@ -419,29 +469,26 @@ impl<A, B, Ext> Builder<A, B, Ext> {
         self
     }
 
-    pub fn build(self) -> (UringA<A, B, Ext>, UringB<A, B, Ext>) {
-        let Self {
-            size_a,
-            size_b,
-            ext,
-            marker: _,
-        } = self;
+    pub fn build_header(self) -> Header<Ext> {
+        Header {
+            off_a: Offsets::new(self.size_a as u32),
+            off_b: Offsets::new(self.size_b as u32),
+            rc: AtomicU32::new(2),
+            ext: self.ext,
+        }
+    }
 
+    pub fn build(self) -> (UringA<A, B, Ext>, UringB<A, B, Ext>) {
         let header;
         let buf_a;
         let buf_b;
 
         unsafe {
             header = alloc::<Header<Ext>>();
-            buf_a = alloc_buffer(size_a);
-            buf_b = alloc_buffer(size_b);
+            buf_a = alloc_buffer(self.size_a);
+            buf_b = alloc_buffer(self.size_b);
 
-            header.write(Header {
-                off_a: Offsets::new(size_a as u32),
-                off_b: Offsets::new(size_b as u32),
-                rc: AtomicU32::new(2),
-                ext,
-            });
+            header.write(self.build_header());
         }
 
         let ring_a = UringA(RawUring {
