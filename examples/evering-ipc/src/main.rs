@@ -2,12 +2,10 @@
 
 mod op;
 mod reactor;
+mod shm;
 
-use std::alloc::Layout;
-use std::mem::{align_of, size_of};
 use std::num::NonZeroUsize;
 use std::os::fd::{FromRawFd, OwnedFd};
-use std::ptr::NonNull;
 use std::rc::Rc;
 use std::str::FromStr;
 use std::time::Duration;
@@ -24,11 +22,11 @@ use nix::sys::stat::Mode;
 
 use self::op::{Rqe, RqeData, Sqe, SqeData};
 use self::reactor::Reactor;
+use self::shm::ShmHeader;
 
 type Sender = uring::UringA<Sqe, Rqe>;
 type Receiver = uring::UringB<Sqe, Rqe>;
 type UringBuilder = uring::Builder<Sqe, Rqe>;
-type RawUring = uring::RawUring<Sqe, Rqe>;
 
 #[derive(Debug, FromArgs)]
 /// IPC based on shared memory
@@ -36,32 +34,32 @@ type RawUring = uring::RawUring<Sqe, Rqe>;
 struct Args {
     /// fd or path to shared memory
     #[argh(option, arg_name = "int|path")]
-    memfile: Memfile,
+    shmfile: Shmfile,
     /// size of shared memory
     #[argh(option, arg_name = "int")]
-    memsize: usize,
-    /// create the specified memfile
+    shmsize: usize,
+    /// create the specified shmfile
     #[argh(switch)]
     create: bool,
     /// type of this app, may be "client" or "server"
-    #[argh(option, long = "type")]
-    typ: AppType,
+    #[argh(option, long = "app")]
+    app: AppType,
 }
 
 #[derive(Debug)]
-enum Memfile {
+enum Shmfile {
     Fd(i32),
     Path(String),
 }
 
-impl Memfile {
+impl Shmfile {
     fn to_fd(&self, create: bool) -> Result<OwnedFd> {
         match self {
-            Memfile::Fd(_) if create => Err(anyhow!("fd as memfile cannot be created")),
+            Shmfile::Fd(_) if create => Err(anyhow!("fd as shmfile cannot be created")),
             // SAFETY: The fd's validity is guaranteed by the parent process.
-            Memfile::Fd(f) => unsafe { Ok(OwnedFd::from_raw_fd(*f)) },
-            Memfile::Path(p) => {
-                tracing::info!("created memfile, path=/dev/shm/{p}");
+            Shmfile::Fd(f) => unsafe { Ok(OwnedFd::from_raw_fd(*f)) },
+            Shmfile::Path(p) => {
+                tracing::info!("created shmfile, path=/dev/shm/{p}");
                 let mut oflag = OFlag::O_RDWR;
                 if create {
                     oflag |= OFlag::O_CREAT | OFlag::O_EXCL;
@@ -74,20 +72,20 @@ impl Memfile {
 
     fn unlink(&self) -> Result<()> {
         match self {
-            Memfile::Fd(_) => Ok(()),
-            Memfile::Path(p) => {
-                tracing::info!("removed memfile, path=/dev/shm/{p}");
+            Shmfile::Fd(_) => Ok(()),
+            Shmfile::Path(p) => {
+                tracing::info!("removed shmfile, path=/dev/shm/{p}");
                 mman::shm_unlink(p.as_str()).map_err(|e| anyhow!("shm_unlink({p}): {e}"))
             },
         }
     }
 }
 
-impl FromStr for Memfile {
+impl FromStr for Shmfile {
     type Err = &'static str;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
-            Err("memfile must not be empty")
+            Err("shmfile must not be empty")
         } else {
             Ok(s.parse()
                 .map_or_else(|_| Self::Path(s.to_owned()), Self::Fd))
@@ -112,16 +110,6 @@ impl FromStr for AppType {
     }
 }
 
-#[repr(C)] // Enforce `header` is at the first field
-struct UringOffsets<Ext> {
-    header: uring::Header<Ext>,
-    // Relative offsets of uring buffers
-    buf_a: usize,
-    buf_b: usize,
-    // Size of the entier Uring
-    size: usize,
-}
-
 pub fn main() -> Result<()> {
     let args = argh::from_env::<Args>();
     tracing_subscriber::fmt()
@@ -130,19 +118,19 @@ pub fn main() -> Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let memfd = args.memfile.to_fd(args.create)?;
-    let memsize =
-        NonZeroUsize::new(args.memsize).ok_or_else(|| anyhow!("memsize must not be zero"))?;
+    let shmfd = args.shmfile.to_fd(args.create)?;
+    let shmsize =
+        NonZeroUsize::new(args.shmsize).ok_or_else(|| anyhow!("shmsize must not be zero"))?;
     // SAFETY: The fd's validity is guaranteed by the parent process.
-    let memaddr = unsafe {
-        nix::unistd::ftruncate(&memfd, memsize.get() as i64)
+    let shmaddr = unsafe {
+        nix::unistd::ftruncate(&shmfd, shmsize.get() as i64)
             .map_err(|e| anyhow!("failed to initialize shared memory: {e}"))?;
         mman::mmap(
             None,
-            memsize,
+            shmsize,
             ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
             MapFlags::MAP_SHARED,
-            &memfd,
+            &shmfd,
             0,
         )?
         .cast::<u8>()
@@ -150,29 +138,18 @@ pub fn main() -> Result<()> {
 
     let header = if args.create {
         let h = UringBuilder::new().build_header();
-        unsafe { init_uring::<Rqe, Sqe, ()>(memaddr, memsize.get(), h) }
+        unsafe { ShmHeader::<Sqe, Rqe>::init(shmaddr, shmsize.get(), h).as_ref() }
     } else {
-        memaddr.cast()
+        unsafe { shmaddr.cast().as_ref() }
     };
 
-    let build_raw = || {
-        let mut raw = RawUring::dangling();
-        unsafe {
-            let h = header.as_ref();
-            raw.header = header.cast();
-            raw.buf_a = header.byte_add(h.buf_a).cast();
-            raw.buf_b = header.byte_add(h.buf_b).cast();
-        }
-        raw
-    };
-
-    let disposed = match args.typ {
-        AppType::Client => start_client(unsafe { Sender::from_raw(build_raw()) }),
-        AppType::Server => start_server(unsafe { Receiver::from_raw(build_raw()) }),
+    let disposed = match args.app {
+        AppType::Client => start_client(unsafe { Sender::from_raw(header.build_raw_uring()) }),
+        AppType::Server => start_server(unsafe { Receiver::from_raw(header.build_raw_uring()) }),
     };
 
     if disposed {
-        args.memfile.unlink()?;
+        args.shmfile.unlink()?;
     }
 
     Ok(())
@@ -248,51 +225,4 @@ fn start_server(mut rq: Receiver) -> bool {
     }
 
     rq.dispose_raw().is_ok()
-}
-
-unsafe fn init_uring<A, B, Ext>(
-    start: NonNull<u8>,
-    len: usize,
-    header: uring::Header<Ext>,
-) -> NonNull<UringOffsets<Ext>> {
-    let page_size = 4096; // TODO: use sysconf(2)
-
-    // Check alignments
-    assert!(start.addr().get() & (page_size - 1) == 0);
-    assert!(align_of::<UringOffsets<Ext>>() < page_size);
-    assert!(align_of::<A>() < page_size);
-    assert!(align_of::<B>() < page_size);
-
-    // Check overflows
-    let mut size;
-
-    let offsets = start.cast::<UringOffsets<Ext>>();
-    size = size_of::<UringOffsets<Ext>>();
-
-    let layout_a = Layout::array::<A>(header.size_a()).unwrap();
-    let buf_a = align_up(size, layout_a.align());
-    size = buf_a + layout_a.size();
-
-    let layout_b = Layout::array::<B>(header.size_b()).unwrap();
-    let buf_b = align_up(size, layout_b.align());
-    size = buf_b + layout_b.size();
-
-    assert!(size <= len);
-
-    // Initialize the Uring
-    unsafe {
-        offsets.write(UringOffsets {
-            header,
-            buf_a,
-            buf_b,
-            size,
-        });
-    }
-
-    offsets
-}
-
-const fn align_up(n: usize, align: usize) -> usize {
-    debug_assert!(align.is_power_of_two());
-    (n + align - 1) & !(align - 1)
 }
