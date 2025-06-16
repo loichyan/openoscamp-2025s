@@ -10,4 +10,5 @@ edition = "2024"
 
 [workspace.dependencies]
 evering = { path = "evering" }
+fastrand = "2.3.0"
 local-executor = { path = "local-executor" }
