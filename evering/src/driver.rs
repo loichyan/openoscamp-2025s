@@ -1,10 +1,12 @@
 #![doc = include_str!("driver.md")]
 
-use crate::op::Cancellation;
 use core::cell::RefCell;
 use core::mem;
 use core::task::{Context, LocalWaker, Poll};
+
 use slab::Slab;
+
+use crate::op::Cancellation;
 
 #[derive(Clone, Copy, Debug)]
 pub struct OpId(usize);

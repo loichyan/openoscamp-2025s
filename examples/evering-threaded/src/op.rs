@@ -1,9 +1,11 @@
-use crate::reactor::ReactorHandle;
-use evering::driver::OpId;
-use evering::op::{Cancellation, Completable, Op as RawOp};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
+
+use evering::driver::OpId;
+use evering::op::{Cancellation, Completable, Op as RawOp};
+
+use crate::reactor::ReactorHandle;
 
 pub(crate) struct Op<T: Completable>(RawOp<T>);
 

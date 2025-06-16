@@ -1,8 +1,9 @@
-use crate::task::*;
 use alloc::collections::VecDeque;
 use core::cell::RefCell;
 use core::pin::pin;
 use core::task::{Context, Poll, Waker};
+
+use crate::task::*;
 
 pub fn spawn<Ex, T, F>(handle: Ex, fut: F) -> Task<T>
 where

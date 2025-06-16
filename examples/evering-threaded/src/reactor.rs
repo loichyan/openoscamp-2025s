@@ -1,10 +1,12 @@
-use crate::op::{Op, Rqe, RqeData, Sqe};
-use evering::driver::{Driver, OpId};
-use evering::op::Completable;
-use evering::uring::{Sender, Uring};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use std::task::{Context, Poll};
+
+use evering::driver::{Driver, OpId};
+use evering::op::Completable;
+use evering::uring::{Sender, Uring};
+
+use crate::op::{Op, Rqe, RqeData, Sqe};
 
 pub struct Reactor(Rc<ReactorInner>);
 

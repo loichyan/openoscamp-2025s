@@ -540,8 +540,9 @@ unsafe fn dealloc<T>(ptr: NonNull<T>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::atomic::{AtomicBool, AtomicUsize};
+
+    use super::*;
 
     #[test]
     fn queue_len() {

@@ -3,13 +3,15 @@
 mod op;
 mod reactor;
 
-use self::op::{Rqe, RqeData, Sqe, SqeData};
-use self::reactor::Reactor;
-use evering::uring::Uring;
-use local_executor::Executor;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::time::Duration;
+
+use evering::uring::Uring;
+use local_executor::Executor;
+
+use self::op::{Rqe, RqeData, Sqe, SqeData};
+use self::reactor::Reactor;
 
 fn main() {
     let (sq, mut rq) = evering::uring::Builder::new().build();

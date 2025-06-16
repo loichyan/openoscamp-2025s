@@ -1,4 +1,3 @@
-use crate::executor::ExecutorHandle;
 use alloc::rc::Rc;
 use alloc::task::LocalWake;
 use core::any::Any;
@@ -6,6 +5,8 @@ use core::cell::{RefCell, RefMut};
 use core::marker::PhantomData;
 use core::pin::Pin;
 use core::task::{Context, LocalWaker, Poll};
+
+use crate::executor::ExecutorHandle;
 
 pub struct Task<T> {
     inner: TaskRef,

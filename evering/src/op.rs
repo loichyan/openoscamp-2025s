@@ -1,10 +1,11 @@
 #![doc = include_str!("op.md")]
 
-use crate::driver::{DriverHandle, OpId};
 use alloc::boxed::Box;
 use core::any::Any;
 use core::pin::Pin;
 use core::task::{Context, Poll};
+
+use crate::driver::{DriverHandle, OpId};
 
 /// # Safety
 ///
