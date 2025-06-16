@@ -1,3 +1,4 @@
+use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -6,6 +7,7 @@ use evering::driver::OpId;
 use evering::op::{Cancellation, Completable, Op as RawOp};
 
 use crate::reactor::ReactorHandle;
+use crate::shm::{ShmAddr, ShmBox};
 
 pub(crate) struct Op<T: Completable>(RawOp<T>);
 
@@ -43,37 +45,47 @@ pub(crate) struct Rqe {
 #[derive(Debug)]
 pub(crate) enum SqeData {
     Exit,
-    Ping { delay: Duration },
+    Ping {
+        delay: Duration,
+        token: ShmAddr<[MaybeUninit<u8>]>,
+    },
 }
 
 #[derive(Debug)]
 pub(crate) enum RqeData {
     Exited,
-    Pong { token: u64 },
+    Pong,
 }
 
-pub(crate) struct Ping;
+pub(crate) struct Ping {
+    token: ShmBox<[MaybeUninit<u8>]>,
+}
 
 unsafe impl Completable for Ping {
-    type Output = u64;
+    type Output = ShmBox<[u8]>;
     type Driver = ReactorHandle;
     fn complete(self, _drv: &ReactorHandle, payload: RqeData) -> Self::Output {
-        let RqeData::Pong { token } = payload else {
+        let RqeData::Pong = payload else {
             unreachable!()
         };
-        token
+        unsafe { self.token.assume_init() }
     }
     fn cancel(self, _drv: &ReactorHandle) -> Cancellation {
         Cancellation::noop()
     }
 }
 
-pub async fn ping(delay: Duration) -> u64 {
+pub async fn ping(
+    h: &crate::ShmHeader,
+    delay: Duration,
+    token: ShmBox<[MaybeUninit<u8>]>,
+) -> ShmBox<[u8]> {
     ReactorHandle::submit(|id| {
-        (Op::new(id, Ping), Sqe {
-            id,
-            data: SqeData::Ping { delay },
-        })
+        let data = SqeData::Ping {
+            delay,
+            token: h.get_addr(&token),
+        };
+        (Op::new(id, Ping { token }), Sqe { id, data })
     })
     .await
 }

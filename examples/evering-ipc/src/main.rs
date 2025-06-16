@@ -22,8 +22,8 @@ use nix::sys::stat::Mode;
 
 use self::op::{Rqe, RqeData, Sqe, SqeData};
 use self::reactor::Reactor;
-use self::shm::ShmHeader;
 
+type ShmHeader = self::shm::ShmHeader<Sqe, Rqe>;
 type Sender = uring::UringA<Sqe, Rqe>;
 type Receiver = uring::UringB<Sqe, Rqe>;
 type UringBuilder = uring::Builder<Sqe, Rqe>;
@@ -138,14 +138,14 @@ pub fn main() -> Result<()> {
 
     let header = if args.create {
         let h = UringBuilder::new().build_header();
-        unsafe { ShmHeader::<Sqe, Rqe>::init(shmaddr, shmsize.get(), h).as_ref() }
+        unsafe { ShmHeader::init(shmaddr, shmsize.get(), h).as_ref() }
     } else {
         unsafe { shmaddr.cast().as_ref() }
     };
 
     let disposed = match args.app {
-        AppType::Client => start_client(unsafe { Sender::from_raw(header.build_raw_uring()) }),
-        AppType::Server => start_server(unsafe { Receiver::from_raw(header.build_raw_uring()) }),
+        AppType::Client => start_client(header),
+        AppType::Server => start_server(header),
     };
 
     if disposed {
@@ -155,7 +155,12 @@ pub fn main() -> Result<()> {
     Ok(())
 }
 
-fn start_client(sq: Sender) -> bool {
+fn start_client(h: &'static ShmHeader) -> bool {
+    let (allocator, sq);
+    unsafe {
+        allocator = h.take_allocator();
+        sq = Sender::from_raw(h.build_raw_uring());
+    }
     tracing::info!("started client, connected={}", sq.is_connected());
 
     let reactor = Reactor::new(sq);
@@ -166,10 +171,17 @@ fn start_client(sq: Sender) -> bool {
                 let delay = fastrand::u64(50..500);
                 tracing::info!("requested ping({i}), delay={delay:?}ms");
 
+                let delay = fastrand::u64(0..500);
+                let token = unsafe { allocator.alloc_array_uninit(fastrand::usize(8..=32)) };
+
                 let now = std::time::Instant::now();
-                let token = op::ping(Duration::from_millis(fastrand::u64(0..500))).await;
+                let token = op::ping(h, Duration::from_millis(delay), token).await;
                 let elapsed = now.elapsed().as_millis();
-                tracing::info!("responded pong({i}), elapsed={elapsed}ms, token={token:x}");
+
+                let token_str = std::str::from_utf8(&token).unwrap();
+                tracing::info!("responded pong({i}), elapsed={elapsed}ms, token={token_str}");
+
+                unsafe { allocator.dealloc(token) }
             })
             .map(|fut| local_executor::spawn(Rc::downgrade(&rt), fut))
             .collect::<Vec<_>>();
@@ -184,7 +196,8 @@ fn start_client(sq: Sender) -> bool {
     reactor.into_sender().dispose_raw().is_ok()
 }
 
-fn start_server(mut rq: Receiver) -> bool {
+fn start_server(h: &'static ShmHeader) -> bool {
+    let mut rq = unsafe { Receiver::from_raw(h.build_raw_uring()) };
     tracing::info!("started server, connected={}", rq.is_connected());
 
     let mut local_queue = Vec::new();
@@ -197,11 +210,15 @@ fn start_server(mut rq: Receiver) -> bool {
                     should_exit = true;
                     RqeData::Exited
                 },
-                SqeData::Ping { delay } => {
+                SqeData::Ping { delay, token } => {
                     std::thread::sleep(delay);
-                    RqeData::Pong {
-                        token: fastrand::u64(..),
+                    unsafe {
+                        let mut token = h.get_ptr(token);
+                        for c in token.as_mut().iter_mut() {
+                            c.write(fastrand::alphanumeric() as u32 as u8);
+                        }
                     }
+                    RqeData::Pong
                 },
             };
             local_queue.push(Rqe { id, data });
