@@ -13,7 +13,6 @@ pub struct OpId(usize);
 
 pub struct Driver<P, Ext = ()>(RefCell<DriverInner<P, Ext>>);
 
-// TODO: panic on drop if there are pending operations
 struct DriverInner<P, Ext> {
     ops: Slab<RawOp<P, Ext>>,
 }
@@ -33,6 +32,14 @@ enum Lifecycle<P> {
 impl<P, Ext> Driver<P, Ext> {
     pub const fn new() -> Self {
         Self(RefCell::new(DriverInner { ops: Slab::new() }))
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.borrow().ops.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.borrow().ops.is_empty()
     }
 
     pub fn contains(&self, id: OpId) -> bool {
@@ -151,6 +158,17 @@ impl<P, Ext> DriverInner<P, Ext> {
             Lifecycle::Completed(_) => _ = self.ops.remove(id.0),
             Lifecycle::Cancelled(_) => unreachable!("invalid operation state"),
         }
+    }
+}
+
+impl<P, Ext> Drop for DriverInner<P, Ext> {
+    fn drop(&mut self) {
+        assert!(
+            self.ops
+                .iter()
+                .all(|(_, op)| matches!(op.state, Lifecycle::Completed(_))),
+            "all operations inside `Driver` must be completed before dropping"
+        );
     }
 }
 

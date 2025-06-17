@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 use std::task::{Context, Poll};
 
@@ -8,7 +9,7 @@ use evering::uring::{Sender, Uring};
 
 use crate::op::{Op, Rqe, RqeData, Sqe};
 
-pub struct Reactor(Rc<ReactorInner>);
+pub struct Reactor(ManuallyDrop<Rc<ReactorInner>>);
 
 struct ReactorInner {
     sender: RefCell<Sender<Sqe, Rqe>>,
@@ -17,21 +18,21 @@ struct ReactorInner {
 
 impl Reactor {
     pub fn new(sender: Sender<Sqe, Rqe>) -> Self {
-        Self(Rc::new(ReactorInner {
+        Self(ManuallyDrop::new(Rc::new(ReactorInner {
             sender: RefCell::new(sender),
             driver: Driver::new(),
-        }))
+        })))
     }
 
     pub async fn run_on<F: Future>(&self, fut: F) -> F::Output {
         let _guard = ReactorHandle::enter(&self.0);
-        let ReactorInner { sender, driver } = &*self.0;
+        let rx = &self.0;
 
         let mut fut = std::pin::pin!(fut);
         let mut noop_cx = Context::from_waker(std::task::Waker::noop());
         std::future::poll_fn(move |cx| {
-            while let Some(rqe) = { sender.borrow_mut().recv() } {
-                _ = driver.complete(rqe.id, rqe.data);
+            while let Some(rqe) = { rx.sender.borrow_mut().recv() } {
+                _ = rx.driver.complete(rqe.id, rqe.data);
             }
             match fut.as_mut().poll(&mut noop_cx) {
                 // Always wake ourself if pending as the given `Future` may wait
@@ -40,11 +41,20 @@ impl Reactor {
                     cx.local_waker().wake_by_ref();
                     Poll::Pending
                 },
-                // TODO: wait for all pending operations
                 ready => ready,
             }
         })
         .await
+    }
+}
+
+impl Drop for Reactor {
+    fn drop(&mut self) {
+        let rc = unsafe { ManuallyDrop::take(&mut self.0) };
+        // TODO: should wait instead?
+        if !rc.driver.is_empty() {
+            std::mem::forget(rc);
+        }
     }
 }
 
