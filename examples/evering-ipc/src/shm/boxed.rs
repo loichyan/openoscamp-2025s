@@ -96,7 +96,7 @@ thread_local! {
     static ALO: Cell<Option<&'static Allocator>> = const { Cell::new(None) };
 }
 
-struct ShmHandle;
+pub struct ShmHandle;
 
 impl ShmHandle {
     pub fn init(shm: &'static ShmHeader) {
@@ -111,7 +111,7 @@ impl ShmHandle {
     }
 }
 
-struct AloHandle;
+pub struct AloHandle;
 
 impl AloHandle {
     pub fn init(shm: &'static ShmHeader) {
@@ -126,7 +126,11 @@ impl AloHandle {
     }
 }
 
-pub(crate) fn init(shm: &'static ShmHeader) {
+pub fn init_client(shm: &'static ShmHeader) {
     ShmHandle::init(shm);
     AloHandle::init(shm);
+}
+
+pub fn init_server(shm: &'static ShmHeader) {
+    ShmHandle::init(shm);
 }

@@ -157,7 +157,7 @@ pub fn main() -> Result<()> {
 }
 
 fn start_client(shm: &'static ShmHeader) -> bool {
-    crate::shm::boxed::init(shm);
+    crate::shm::init_client(shm);
     let sq = unsafe { Sender::from_raw(shm.build_raw_uring()) };
     tracing::info!("started client, connected={}", sq.is_connected());
 
@@ -178,8 +178,6 @@ fn start_client(shm: &'static ShmHeader) -> bool {
 
                 let token_str = std::str::from_utf8(&token).unwrap();
                 tracing::info!("responded pong({i}), elapsed={elapsed}ms, token={token_str}");
-
-                drop(token);
             })
             .map(|fut| local_executor::spawn(Rc::downgrade(&rt), fut))
             .collect::<Vec<_>>();
@@ -195,6 +193,7 @@ fn start_client(shm: &'static ShmHeader) -> bool {
 }
 
 fn start_server(shm: &'static ShmHeader) -> bool {
+    crate::shm::init_server(shm);
     let mut rq = unsafe { Receiver::from_raw(shm.build_raw_uring()) };
     tracing::info!("started server, connected={}", rq.is_connected());
 
@@ -211,7 +210,7 @@ fn start_server(shm: &'static ShmHeader) -> bool {
                 SqeData::Ping { delay, token } => {
                     std::thread::sleep(delay);
                     unsafe {
-                        let mut token = shm.get_ptr(token);
+                        let mut token = token.as_ptr();
                         for c in token.as_mut().iter_mut() {
                             c.write(fastrand::alphanumeric() as u32 as u8);
                         }

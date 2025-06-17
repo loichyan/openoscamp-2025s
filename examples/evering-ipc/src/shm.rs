@@ -1,4 +1,4 @@
-pub mod boxed;
+mod boxed;
 
 use std::alloc::Layout;
 use std::cell::RefCell;
@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use evering::uring::{Header as UringHeader, RawUring};
 use rlsf::Tlsf;
 
-pub use self::boxed::ShmBox;
+pub use self::boxed::{ShmBox, init_client, init_server};
 
 pub struct ShmHeader<A = crate::op::Sqe, B = crate::op::Rqe, Ext = ()> {
     header: UringHeader<Ext>,
@@ -117,7 +117,7 @@ impl<A, B, Ext> ShmHeader<A, B, Ext> {
     /// # Safety
     ///
     /// The given `shm` must belong to this memory region.
-    pub unsafe fn get_ptr<T: ?Sized>(&self, shm: ShmToken<T>) -> NonNull<T> {
+    pub fn get_ptr<T: ?Sized>(&self, shm: ShmToken<T>) -> NonNull<T> {
         let start = self.start_addr();
         unsafe { shm.0.byte_add(start) }
     }
@@ -184,9 +184,17 @@ impl Allocator {
 
 pub struct ShmToken<T: ?Sized>(NonNull<T>);
 
+impl<T: ?Sized> ShmToken<T> {
+    pub fn as_ptr(&self) -> NonNull<T> {
+        boxed::ShmHandle::get().get_ptr(*self)
+    }
+}
+
 impl<T: ?Sized> fmt::Debug for ShmToken<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.cast::<()>().fmt(f)
+        f.debug_tuple("ShmToken")
+            .field(&self.0.cast::<()>())
+            .finish()
     }
 }
 
