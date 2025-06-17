@@ -5,77 +5,90 @@ use std::cell::RefCell;
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::num::NonZeroUsize;
+use std::num::{NonZero, NonZeroUsize};
+use std::os::fd::BorrowedFd;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use anyhow::Context;
 use evering::uring::{Header as UringHeader, RawUring};
 use rlsf::Tlsf;
 
 pub use self::boxed::{ShmBox, init_client, init_server};
+use crate::Result;
 
 pub struct ShmHeader<A = crate::op::Sqe, B = crate::op::Rqe, Ext = ()> {
     header: UringHeader<Ext>,
-    allocator_taken: AtomicBool,
-    allocator: Allocator, // Max block size: 32 << 24 = 512MB
     // Relative offsets of uring buffers
     buf_a: usize,
     buf_b: usize,
-    /// The offset of the free memory block
-    free_memory: usize,
-    /// The count of total bytes available
-    len: usize,
+    allocator_taken: AtomicBool,
+    allocator: Allocator, // Max block size: 32 << 24 = 512MB
+    free_memory: (usize, usize),
     marker: PhantomData<(A, B)>,
 }
 
 impl<A, B, Ext> ShmHeader<A, B, Ext> {
-    pub unsafe fn init(start: NonNull<u8>, len: usize, header: UringHeader<Ext>) -> NonNull<Self> {
-        let page_size = 4096; // TODO: use sysconf(2)
-
-        // Check alignments
-        assert!(start.addr().get() & (page_size - 1) == 0);
-        assert!(align_of::<Self>() < page_size);
-        assert!(align_of::<A>() < page_size);
-        assert!(align_of::<B>() < page_size);
-
-        // Check overflows
-        let mut end;
-
-        let this = start.cast::<Self>();
-        end = size_of::<Self>();
+    /// # Safety
+    ///
+    /// The given `fd` must be valid for the remaining lifetime of the running
+    /// program.
+    pub unsafe fn create(
+        fd: BorrowedFd,
+        size: usize,
+        header: UringHeader<Ext>,
+    ) -> Result<NonNull<Self>> {
+        // Calculate offsets
+        let mut cur = size_of::<Self>();
 
         let layout_a = Layout::array::<A>(header.size_a()).unwrap();
-        let buf_a = align_up(end, layout_a.align());
-        end = buf_a + layout_a.size();
+        let buf_a = align_up(cur, layout_a.align());
+        cur = buf_a + layout_a.size();
 
         let layout_b = Layout::array::<B>(header.size_b()).unwrap();
-        let buf_b = align_up(end, layout_b.align());
-        end = buf_b + layout_b.size();
+        let buf_b = align_up(cur, layout_b.align());
+        cur = buf_b + layout_b.size();
 
-        assert!(end <= len);
+        assert!(cur < size, "capacity of shared memory is too small");
 
-        // Initialize the Uring
+        // Initialize shared memory and the uring buffers
         unsafe {
+            shm_grow(fd, size)?;
+            let this = shm_mmap(fd, size, 0)?.cast::<Self>();
+
             this.write(Self {
                 header,
-                allocator_taken: AtomicBool::new(false),
-                allocator: Allocator::new(),
                 buf_a,
                 buf_b,
-                free_memory: end,
-                len,
+                allocator_taken: AtomicBool::new(false),
+                allocator: Allocator::new(),
+                free_memory: (cur, size),
                 marker: PhantomData,
             });
-        }
 
-        this
+            Ok(this)
+        }
+    }
+
+    /// # Safety
+    ///
+    /// The given `fd` must be valid for the remaining lifetime of the running
+    /// program.
+    pub unsafe fn open(fd: BorrowedFd, size: usize) -> Result<NonNull<Self>> {
+        assert_eq!(
+            nix::sys::stat::fstat(fd)
+                .context("failed to read shmfd")?
+                .st_size as i64,
+            size as i64
+        );
+        unsafe { shm_mmap(fd, size, 0).map(NonNull::cast) }
     }
 
     pub fn build_raw_uring(&self) -> RawUring<A, B, Ext> {
         let mut raw = RawUring::<A, B, Ext>::dangling();
         unsafe {
-            let start = NonNull::from(self);
-            raw.header = NonNull::new_unchecked(std::ptr::from_ref(&self.header).cast_mut());
+            let start = self.start_ptr();
+            raw.header = NonNull::from(&self.header);
             raw.buf_a = start.byte_add(self.buf_a).cast();
             raw.buf_b = start.byte_add(self.buf_b).cast();
         }
@@ -87,9 +100,10 @@ impl<A, B, Ext> ShmHeader<A, B, Ext> {
             panic!("allocator has been taken");
         }
         unsafe {
-            let start = NonNull::from(self).cast::<u8>();
-            let data = start.byte_add(self.free_memory);
-            let block = NonNull::slice_from_raw_parts(data, self.len - self.free_memory);
+            let (data_start, data_end) = self.free_memory;
+            let data = self.start_ptr().byte_add(data_start);
+            let block = NonNull::slice_from_raw_parts(data, data_end - data_start);
+
             tracing::info!(
                 "added free memory, start={data:#x?}, length={}KB",
                 block.len() / 1024
@@ -98,16 +112,12 @@ impl<A, B, Ext> ShmHeader<A, B, Ext> {
                 .tlsf
                 .borrow_mut()
                 .append_free_block_ptr(block);
-            &self.allocator
         }
-    }
-
-    fn start_addr(&self) -> usize {
-        std::ptr::from_ref(self).addr()
+        &self.allocator
     }
 
     pub fn get_shm<T: ?Sized>(&self, ptr: NonNull<T>) -> ShmToken<T> {
-        let start = self.start_addr();
+        let start = self.start_addr().get();
         let addr = ptr.addr().get();
         assert!(addr > start);
         let shm = NonZeroUsize::new(addr - start).unwrap();
@@ -118,17 +128,26 @@ impl<A, B, Ext> ShmHeader<A, B, Ext> {
     ///
     /// The given `shm` must belong to this memory region.
     pub fn get_ptr<T: ?Sized>(&self, shm: ShmToken<T>) -> NonNull<T> {
-        let start = self.start_addr();
+        let start = self.start_addr().get();
         unsafe { shm.0.byte_add(start) }
+    }
+
+    fn start_addr(&self) -> NonZeroUsize {
+        self.start_ptr().addr()
+    }
+
+    fn start_ptr(&self) -> NonNull<u8> {
+        NonNull::from(self).cast()
     }
 }
 
 pub struct Allocator {
-    tlsf: RefCell<Tlsf<'static, u32, u32, 24, 8>>, // max block size: 32 << 24 = 512MB
+    /// Max block size is `32 << 24 = 512MB`
+    tlsf: RefCell<Tlsf<'static, u32, u32, 24, 8>>,
 }
 
 impl Allocator {
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self {
             tlsf: RefCell::new(Tlsf::new()),
         }
@@ -171,9 +190,10 @@ impl Allocator {
 
     unsafe fn alloc_raw(&self, layout: Layout) -> NonNull<u8> {
         assert_ne!(layout.size(), 0);
-        let mut tlsf = self.tlsf.borrow_mut();
-        tlsf.allocate(layout)
-            .expect("no shared memory available for allocation")
+        self.tlsf
+            .borrow_mut()
+            .allocate(layout)
+            .unwrap_or_else(|| panic!("failed to allocate in shared memory"))
     }
 
     unsafe fn dealloc_raw(&self, ptr: NonNull<u8>, layout: Layout) {
@@ -204,6 +224,26 @@ impl<T: ?Sized> Clone for ShmToken<T> {
     }
 }
 impl<T: ?Sized> Copy for ShmToken<T> {}
+
+unsafe fn shm_mmap(fd: BorrowedFd, len: usize, offset: usize) -> Result<NonNull<u8>> {
+    use nix::sys::mman::{MapFlags, ProtFlags};
+    unsafe {
+        nix::sys::mman::mmap(
+            None,
+            NonZero::new(len).unwrap(),
+            ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+            MapFlags::MAP_SHARED,
+            fd,
+            offset as i64,
+        )
+        .map(NonNull::cast::<u8>)
+        .context("failed to mmap shared memory")
+    }
+}
+
+fn shm_grow(fd: BorrowedFd, new_len: usize) -> Result<()> {
+    nix::unistd::ftruncate(fd, new_len as i64).context("failed to grow shared memory")
+}
 
 const fn align_up(n: usize, align: usize) -> usize {
     debug_assert!(align.is_power_of_two());

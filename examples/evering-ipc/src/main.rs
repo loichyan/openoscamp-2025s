@@ -4,21 +4,16 @@ mod op;
 mod reactor;
 mod shm;
 
-use std::num::NonZeroUsize;
-use std::os::fd::{FromRawFd, OwnedFd};
+use std::os::fd::{AsFd, FromRawFd, OwnedFd};
 use std::rc::Rc;
 use std::str::FromStr;
 use std::time::Duration;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use argh::FromArgs;
 use evering::uring;
 use evering::uring::Uring;
 use local_executor::Executor;
-use nix::fcntl::OFlag;
-use nix::sys::mman;
-use nix::sys::mman::{MapFlags, ProtFlags};
-use nix::sys::stat::Mode;
 
 use self::op::{Rqe, RqeData, Sqe, SqeData};
 use self::reactor::Reactor;
@@ -60,13 +55,17 @@ impl Shmfile {
             // SAFETY: The fd's validity is guaranteed by the parent process.
             Shmfile::Fd(f) => unsafe { Ok(OwnedFd::from_raw_fd(*f)) },
             Shmfile::Path(p) => {
+                use nix::fcntl::OFlag;
+                use nix::sys::stat::Mode;
+
                 tracing::info!("created shmfile, path=/dev/shm/{p}");
                 let mut oflag = OFlag::O_RDWR;
                 if create {
                     oflag |= OFlag::O_CREAT | OFlag::O_EXCL;
                 }
-                let mode = Mode::from_bits(0o644).unwrap();
-                mman::shm_open(p.as_str(), oflag, mode).map_err(|e| anyhow!("shm_open({p}): {e}'"))
+                let mode = Mode::from_bits(0o600).unwrap();
+                nix::sys::mman::shm_open(p.as_str(), oflag, mode)
+                    .with_context(|| format!("failed to create /dev/shm/{p}"))
             },
         }
     }
@@ -76,7 +75,8 @@ impl Shmfile {
             Shmfile::Fd(_) => Ok(()),
             Shmfile::Path(p) => {
                 tracing::info!("removed shmfile, path=/dev/shm/{p}");
-                mman::shm_unlink(p.as_str()).map_err(|e| anyhow!("shm_unlink({p}): {e}"))
+                nix::sys::mman::shm_unlink(p.as_str())
+                    .with_context(|| format!("failed to remove /dev/shm/{p}"))
             },
         }
     }
@@ -120,33 +120,23 @@ pub fn main() -> Result<()> {
         .init();
 
     let shmfd = args.shmfile.to_fd(args.create)?;
-    let shmsize =
-        NonZeroUsize::new(args.shmsize).ok_or_else(|| anyhow!("shmsize must not be zero"))?;
-    // SAFETY: The fd's validity is guaranteed by the parent process.
-    let shmaddr = unsafe {
-        nix::unistd::ftruncate(&shmfd, shmsize.get() as i64)
-            .map_err(|e| anyhow!("failed to initialize shared memory: {e}"))?;
-        mman::mmap(
-            None,
-            shmsize,
-            ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-            MapFlags::MAP_SHARED,
-            &shmfd,
-            0,
-        )?
-        .cast::<u8>()
-    };
+    let shmfd = shmfd.as_fd();
+    let shmsize = args.shmsize;
+    if shmsize == 0 {
+        return Err(anyhow!("shmsize must not be zero"));
+    }
 
-    let header = if args.create {
+    // SAFETY: The fd's validity is guaranteed by the parent process.
+    let shm = if args.create {
         let h = UringBuilder::new().build_header();
-        unsafe { ShmHeader::init(shmaddr, shmsize.get(), h).as_ref() }
+        unsafe { ShmHeader::create(shmfd, shmsize, h)?.as_ref() }
     } else {
-        unsafe { shmaddr.cast().as_ref() }
+        unsafe { ShmHeader::open(shmfd, shmsize)?.as_ref() }
     };
 
     let disposed = match args.app {
-        AppType::Client => start_client(header),
-        AppType::Server => start_server(header),
+        AppType::Client => start_client(shm),
+        AppType::Server => start_server(shm),
     };
 
     if disposed {
