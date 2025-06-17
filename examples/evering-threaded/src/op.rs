@@ -1,32 +1,9 @@
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
 use evering::driver::OpId;
-use evering::op::{Cancellation, Completable, Op as RawOp};
+use evering::op::{Cancellation, Completable};
 
 use crate::reactor::ReactorHandle;
-
-pub(crate) struct Op<T: Completable>(RawOp<T>);
-
-impl<T> Op<T>
-where
-    T: Completable<Driver = ReactorHandle>,
-{
-    pub(crate) fn new(id: OpId, data: T) -> Self {
-        Self(RawOp::new(ReactorHandle, id, data))
-    }
-}
-
-impl<T> Future for Op<T>
-where
-    T: Completable<Driver = ReactorHandle>,
-{
-    type Output = T::Output;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.get_mut().0).poll(cx)
-    }
-}
 
 #[derive(Debug)]
 pub(crate) struct Sqe {
@@ -69,11 +46,9 @@ unsafe impl Completable for Ping {
 }
 
 pub async fn ping(delay: Duration) -> u64 {
-    ReactorHandle::submit(|id| {
-        (Op::new(id, Ping), Sqe {
-            id,
-            data: SqeData::Ping { delay },
-        })
+    ReactorHandle::submit(Ping, |id, _| Sqe {
+        id,
+        data: SqeData::Ping { delay },
     })
     .await
 }
@@ -94,11 +69,9 @@ unsafe impl Completable for Exit {
 }
 
 pub async fn exit() {
-    ReactorHandle::submit(|id| {
-        (Op::new(id, Exit), Sqe {
-            id,
-            data: SqeData::Exit,
-        })
+    ReactorHandle::submit(Exit, |id, _| Sqe {
+        id,
+        data: SqeData::Exit,
     })
     .await
 }

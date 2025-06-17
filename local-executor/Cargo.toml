@@ -5,4 +5,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-pin-project-lite = "0.2.16"
+pin-project-lite.workspace = true
+tracing.workspace = true

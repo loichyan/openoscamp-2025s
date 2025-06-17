@@ -1,5 +1,5 @@
 [package]
-name = "evering-threaded"
+name = "evering-utils"
 publish = false
 version.workspace = true
 authors.workspace = true
@@ -8,6 +8,4 @@ edition.workspace = true
 
 [dependencies]
 evering.workspace = true
-evering-utils.workspace = true
-local-executor.workspace = true
-fastrand.workspace = true
+pin-project-lite.workspace = true

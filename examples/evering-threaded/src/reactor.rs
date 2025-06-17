@@ -1,50 +1,27 @@
 use std::cell::RefCell;
 use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
-use std::task::{Context, Poll};
 
-use evering::driver::{Driver, OpId};
-use evering::op::Completable;
-use evering::uring::{Sender, Uring};
+use evering::driver::OpId;
+use evering::op::{Completable, Op};
 
-use crate::op::{Op, Rqe, RqeData, Sqe};
+use crate::op::{Rqe, RqeData, Sqe};
+
+type Sender = evering::uring::Sender<Sqe, Rqe>;
+type ReactorInner = evering_utils::reactor::Reactor<RqeData, Sender>;
 
 pub struct Reactor(ManuallyDrop<Rc<ReactorInner>>);
 
-struct ReactorInner {
-    sender: RefCell<Sender<Sqe, Rqe>>,
-    driver: Driver<RqeData>,
-}
-
 impl Reactor {
-    pub fn new(sender: Sender<Sqe, Rqe>) -> Self {
-        Self(ManuallyDrop::new(Rc::new(ReactorInner {
-            sender: RefCell::new(sender),
-            driver: Driver::new(),
-        })))
+    pub fn new(sender: Sender) -> Self {
+        Self(ManuallyDrop::new(Rc::new(ReactorInner::new(sender))))
     }
 
     pub async fn run_on<F: Future>(&self, fut: F) -> F::Output {
         let _guard = ReactorHandle::enter(&self.0);
         let rx = &self.0;
-
-        let mut fut = std::pin::pin!(fut);
-        let mut noop_cx = Context::from_waker(std::task::Waker::noop());
-        std::future::poll_fn(move |cx| {
-            while let Some(rqe) = { rx.sender.borrow_mut().recv() } {
-                _ = rx.driver.complete(rqe.id, rqe.data);
-            }
-            match fut.as_mut().poll(&mut noop_cx) {
-                // Always wake ourself if pending as the given `Future` may wait
-                // us to wake it, which leads to a circular waiting chain.
-                Poll::Pending => {
-                    cx.local_waker().wake_by_ref();
-                    Poll::Pending
-                },
-                ready => ready,
-            }
-        })
-        .await
+        rx.run_on(|rqe| _ = rx.driver.complete(rqe.id, rqe.data), fut)
+            .await
     }
 }
 
@@ -64,12 +41,26 @@ thread_local! {
 
 pub(crate) struct ReactorHandle;
 
-impl ReactorHandle {
-    fn get() -> Rc<ReactorInner> {
+impl evering_utils::reactor::ReactorHandle for ReactorHandle {
+    type Payload = RqeData;
+    type Uring = Sender;
+    type Ref = Rc<ReactorInner>;
+    fn get(&self) -> Self::Ref {
         CX.with_borrow(Weak::upgrade)
             .expect("not inside a valid reactor")
     }
+}
 
+impl evering::driver::DriverHandle for ReactorHandle {
+    type Payload = RqeData;
+    type Ext = ();
+    type Ref = evering_utils::reactor::DriverRef<ReactorHandle>;
+    fn get(&self) -> Self::Ref {
+        evering_utils::reactor::DriverRef::new(self)
+    }
+}
+
+impl ReactorHandle {
     fn enter(cx: &Rc<ReactorInner>) -> impl Drop {
         struct Revert;
         impl Drop for Revert {
@@ -86,30 +77,10 @@ impl ReactorHandle {
         Revert
     }
 
-    pub(crate) fn submit<T>(f: impl FnOnce(OpId) -> (Op<T>, Sqe)) -> Op<T>
+    pub(crate) fn submit<T>(data: T, new_entry: impl FnOnce(OpId, &mut T) -> Sqe) -> Op<T>
     where
-        T: Completable,
+        T: Completable<Driver = ReactorHandle>,
     {
-        let rt = ReactorHandle::get();
-        let (op, sqe) = f(rt.driver.submit());
-        rt.sender.borrow_mut().send(sqe).expect("out of capacity");
-        op
-    }
-}
-
-impl evering::driver::DriverHandle for ReactorHandle {
-    type Payload = RqeData;
-    type Ext = ();
-    type Ref = DriverRef;
-    fn get(&self) -> Self::Ref {
-        DriverRef(ReactorHandle::get())
-    }
-}
-
-pub(crate) struct DriverRef(Rc<ReactorInner>);
-impl std::ops::Deref for DriverRef {
-    type Target = Driver<RqeData>;
-    fn deref(&self) -> &Self::Target {
-        &self.0.driver
+        ReactorInner::submit(Self, data, new_entry)
     }
 }

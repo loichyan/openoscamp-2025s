@@ -1,34 +1,11 @@
 use std::mem::MaybeUninit;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
 use evering::driver::OpId;
-use evering::op::{Cancellation, Completable, Op as RawOp};
+use evering::op::{Cancellation, Completable};
 
 use crate::reactor::ReactorHandle;
 use crate::shm::{ShmBox, ShmToken};
-
-pub(crate) struct Op<T: Completable>(RawOp<T>);
-
-impl<T> Op<T>
-where
-    T: Completable<Driver = ReactorHandle>,
-{
-    pub(crate) fn new(id: OpId, data: T) -> Self {
-        Self(RawOp::new(ReactorHandle, id, data))
-    }
-}
-
-impl<T> Future for Op<T>
-where
-    T: Completable<Driver = ReactorHandle>,
-{
-    type Output = T::Output;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.get_mut().0).poll(cx)
-    }
-}
 
 #[derive(Debug)]
 pub(crate) struct Sqe {
@@ -71,17 +48,17 @@ unsafe impl Completable for Ping {
         unsafe { self.token.assume_init() }
     }
     fn cancel(self, _drv: &ReactorHandle) -> Cancellation {
-        Cancellation::noop()
+        Cancellation::recycle(self.token)
     }
 }
 
 pub async fn ping(delay: Duration, token: ShmBox<[MaybeUninit<u8>]>) -> ShmBox<[u8]> {
-    ReactorHandle::submit(|id| {
-        let data = SqeData::Ping {
+    ReactorHandle::submit(Ping { token }, |id, p| Sqe {
+        id,
+        data: SqeData::Ping {
             delay,
-            token: ShmBox::as_shm(&token),
-        };
-        (Op::new(id, Ping { token }), Sqe { id, data })
+            token: ShmBox::as_shm(&p.token),
+        },
     })
     .await
 }
@@ -102,11 +79,9 @@ unsafe impl Completable for Exit {
 }
 
 pub async fn exit() {
-    ReactorHandle::submit(|id| {
-        (Op::new(id, Exit), Sqe {
-            id,
-            data: SqeData::Exit,
-        })
+    ReactorHandle::submit(Exit, |id, _| Sqe {
+        id,
+        data: SqeData::Exit,
     })
     .await
 }

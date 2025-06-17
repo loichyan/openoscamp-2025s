@@ -9,8 +9,11 @@ license = "MIT OR Apache-2.0"
 edition = "2024"
 
 [workspace.dependencies]
+anyhow = "1.0.98"
 evering = { path = "evering" }
+evering-utils = { path = "examples/evering-utils" }
 fastrand = "2.3.0"
 local-executor = { path = "local-executor" }
+pin-project-lite = "0.2.16"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }

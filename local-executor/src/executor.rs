@@ -11,10 +11,7 @@ where
     F: 'static + Future<Output = T>,
     Ex: ExecutorHandle,
 {
-    let ex = handle.get();
-    let task = Task::new(handle, fut);
-    ex.wake(task.inner());
-    task
+    Executor::spawn(handle, fut)
 }
 
 pub async fn yield_now() {
@@ -63,6 +60,18 @@ impl Executor {
                 _ = task.poll_wakeable();
             }
         }
+    }
+
+    pub fn spawn<Ex, T, F>(handle: Ex, fut: F) -> Task<T>
+    where
+        T: 'static,
+        F: 'static + Future<Output = T>,
+        Ex: ExecutorHandle,
+    {
+        let ex = handle.get();
+        let task = Task::new(handle, fut);
+        ex.wake(task.inner());
+        task
     }
 }
 
