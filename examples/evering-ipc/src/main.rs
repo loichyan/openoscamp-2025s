@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use argh::FromArgs;
+use bytesize::ByteSize;
 use evering::uring;
 use evering::uring::Uring;
 use local_executor::Executor;
@@ -33,7 +34,7 @@ struct Args {
     shmfile: Shmfile,
     /// size of shared memory
     #[argh(option, arg_name = "int")]
-    shmsize: usize,
+    shmsize: ByteSize,
     /// create the specified shmfile
     #[argh(switch)]
     create: bool,
@@ -121,7 +122,7 @@ pub fn main() -> Result<()> {
 
     let shmfd = args.shmfile.to_fd(args.create)?;
     let shmfd = shmfd.as_fd();
-    let shmsize = args.shmsize;
+    let shmsize = args.shmsize.0 as usize;
     if shmsize == 0 {
         return Err(anyhow!("shmsize must not be zero"));
     }

@@ -105,8 +105,8 @@ impl<A, B, Ext> ShmHeader<A, B, Ext> {
             let block = NonNull::slice_from_raw_parts(data, data_end - data_start);
 
             tracing::info!(
-                "added free memory, start={data:#x?}, length={}KB",
-                block.len() / 1024
+                "added free memory, start={data:#x?}, length={}",
+                bytesize::ByteSize(block.len() as u64).display().iec_short()
             );
             self.allocator
                 .tlsf

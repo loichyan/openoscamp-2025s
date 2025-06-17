@@ -16,6 +16,7 @@ pin-project-lite.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 rlsf = "0.2.1"
+bytesize = "2.0.1"
 
 [dependencies.argh]
 version = "0.1.13"
