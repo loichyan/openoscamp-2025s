@@ -1,3 +1,5 @@
+pub mod boxed;
+
 use std::alloc::Layout;
 use std::cell::RefCell;
 use std::fmt;
@@ -10,7 +12,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use evering::uring::{Header as UringHeader, RawUring};
 use rlsf::Tlsf;
 
-pub struct ShmHeader<A, B, Ext = ()> {
+pub use self::boxed::ShmBox;
+
+pub struct ShmHeader<A = crate::op::Sqe, B = crate::op::Rqe, Ext = ()> {
     header: UringHeader<Ext>,
     allocator_taken: AtomicBool,
     allocator: Allocator, // Max block size: 32 << 24 = 512MB
@@ -78,7 +82,7 @@ impl<A, B, Ext> ShmHeader<A, B, Ext> {
         raw
     }
 
-    pub fn take_allocator(&self) -> &Allocator {
+    pub fn get_allocator(&self) -> &Allocator {
         if self.allocator_taken.swap(true, Ordering::Acquire) {
             panic!("allocator has been taken");
         }
@@ -102,17 +106,20 @@ impl<A, B, Ext> ShmHeader<A, B, Ext> {
         std::ptr::from_ref(self).addr()
     }
 
-    pub fn get_addr<T: ?Sized>(&self, boxed: &ShmBox<T>) -> ShmAddr<T> {
-        let start_addr = self.start_addr();
-        let boxed_addr = boxed.0.addr().get();
-        assert!(boxed_addr > start_addr);
-        let addr = NonZeroUsize::new(boxed_addr - start_addr).unwrap();
-        ShmAddr(boxed.0.with_addr(addr))
+    pub fn get_shm<T: ?Sized>(&self, ptr: NonNull<T>) -> ShmToken<T> {
+        let start = self.start_addr();
+        let addr = ptr.addr().get();
+        assert!(addr > start);
+        let shm = NonZeroUsize::new(addr - start).unwrap();
+        ShmToken(ptr.with_addr(shm))
     }
 
-    pub unsafe fn get_ptr<T: ?Sized>(&self, addr: ShmAddr<T>) -> NonNull<T> {
-        let start_addr = self.start_addr();
-        unsafe { addr.0.byte_add(start_addr) }
+    /// # Safety
+    ///
+    /// The given `shm` must belong to this memory region.
+    pub unsafe fn get_ptr<T: ?Sized>(&self, shm: ShmToken<T>) -> NonNull<T> {
+        let start = self.start_addr();
+        unsafe { shm.0.byte_add(start) }
     }
 }
 
@@ -127,97 +134,68 @@ impl Allocator {
         }
     }
 
-    pub unsafe fn alloc<T>(&self, val: T) -> ShmBox<T> {
+    pub fn alloc<T>(&self, val: T) -> NonNull<T> {
         unsafe {
-            let mut boxed = self.alloc_uninit();
-            boxed.write(val);
-            boxed.assume_init()
+            let mut ptr = self.alloc_uninit();
+            ptr.as_mut().write(val);
+            std::mem::transmute(ptr)
         }
     }
 
-    pub unsafe fn alloc_uninit<T>(&self) -> ShmBox<MaybeUninit<T>> {
-        ShmBox(unsafe { self.alloc_raw(Layout::new::<T>()).cast() })
+    pub fn alloc_uninit<T>(&self) -> NonNull<MaybeUninit<T>> {
+        unsafe { self.alloc_raw(Layout::new::<T>()).cast() }
     }
 
-    pub unsafe fn alloc_array_copied<T: Copy>(&self, src: &[T]) -> ShmBox<[T]> {
+    pub fn alloc_copied_slice<T: Copy>(&self, src: &[T]) -> NonNull<[T]> {
         unsafe {
-            let mut boxed = self.alloc_array_uninit(src.len());
+            let mut ptr = self.alloc_uninit_slice(src.len());
             let src_uninit: &[MaybeUninit<T>] = std::mem::transmute(src);
-            boxed.copy_from_slice(src_uninit);
-            boxed.assume_init()
+            ptr.as_mut().copy_from_slice(src_uninit);
+            std::mem::transmute(ptr)
         }
     }
 
-    pub unsafe fn alloc_array_uninit<T>(&self, n: usize) -> ShmBox<[MaybeUninit<T>]> {
-        ShmBox(unsafe {
+    pub fn alloc_uninit_slice<T>(&self, n: usize) -> NonNull<[MaybeUninit<T>]> {
+        unsafe {
             let data = self.alloc_raw(Layout::array::<T>(n).unwrap());
             NonNull::slice_from_raw_parts(data.cast(), n)
-        })
+        }
     }
 
-    pub unsafe fn dealloc<T: ?Sized>(&self, boxed: ShmBox<T>) {
-        let ShmBox(ptr) = boxed;
-        unsafe { self.dealloc_raw(ptr.cast(), Layout::for_value(ptr.as_ref())) }
+    /// # Safety
+    ///
+    /// The given `ptr` must belong to this allocator.
+    pub unsafe fn dealloc<T: ?Sized>(&self, ptr: NonNull<T>) {
+        unsafe { self.dealloc_raw(ptr.cast(), Layout::for_value_raw(ptr.as_ptr())) }
     }
 
     unsafe fn alloc_raw(&self, layout: Layout) -> NonNull<u8> {
+        assert_ne!(layout.size(), 0);
         let mut tlsf = self.tlsf.borrow_mut();
         tlsf.allocate(layout)
             .expect("no shared memory available for allocation")
     }
 
     unsafe fn dealloc_raw(&self, ptr: NonNull<u8>, layout: Layout) {
+        assert_ne!(layout.size(), 0);
         unsafe { self.tlsf.borrow_mut().deallocate(ptr, layout.align()) }
     }
 }
 
-pub struct ShmAddr<T: ?Sized>(NonNull<T>);
+pub struct ShmToken<T: ?Sized>(NonNull<T>);
 
-impl<T: ?Sized> fmt::Debug for ShmAddr<T> {
+impl<T: ?Sized> fmt::Debug for ShmToken<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.cast::<()>().fmt(f)
     }
 }
 
-impl<T: ?Sized> Clone for ShmAddr<T> {
+impl<T: ?Sized> Clone for ShmToken<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<T: ?Sized> Copy for ShmAddr<T> {}
-
-pub struct ShmBox<T: ?Sized>(NonNull<T>);
-
-impl<T> ShmBox<MaybeUninit<T>> {
-    pub unsafe fn assume_init(self) -> ShmBox<T> {
-        ShmBox(self.0.cast())
-    }
-}
-
-impl<T> ShmBox<[MaybeUninit<T>]> {
-    pub unsafe fn assume_init(self) -> ShmBox<[T]> {
-        ShmBox(unsafe { std::mem::transmute::<NonNull<[MaybeUninit<T>]>, NonNull<[T]>>(self.0) })
-    }
-}
-
-impl<T: ?Sized + fmt::Debug> fmt::Debug for ShmBox<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        T::fmt(self, f)
-    }
-}
-
-impl<T: ?Sized> std::ops::Deref for ShmBox<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        unsafe { self.0.as_ref() }
-    }
-}
-
-impl<T: ?Sized> std::ops::DerefMut for ShmBox<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { self.0.as_mut() }
-    }
-}
+impl<T: ?Sized> Copy for ShmToken<T> {}
 
 const fn align_up(n: usize, align: usize) -> usize {
     debug_assert!(align.is_power_of_two());

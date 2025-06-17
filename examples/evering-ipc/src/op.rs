@@ -7,7 +7,7 @@ use evering::driver::OpId;
 use evering::op::{Cancellation, Completable, Op as RawOp};
 
 use crate::reactor::ReactorHandle;
-use crate::shm::{ShmAddr, ShmBox};
+use crate::shm::{ShmBox, ShmToken};
 
 pub(crate) struct Op<T: Completable>(RawOp<T>);
 
@@ -47,7 +47,7 @@ pub(crate) enum SqeData {
     Exit,
     Ping {
         delay: Duration,
-        token: ShmAddr<[MaybeUninit<u8>]>,
+        token: ShmToken<[MaybeUninit<u8>]>,
     },
 }
 
@@ -75,15 +75,11 @@ unsafe impl Completable for Ping {
     }
 }
 
-pub async fn ping(
-    h: &crate::ShmHeader,
-    delay: Duration,
-    token: ShmBox<[MaybeUninit<u8>]>,
-) -> ShmBox<[u8]> {
+pub async fn ping(delay: Duration, token: ShmBox<[MaybeUninit<u8>]>) -> ShmBox<[u8]> {
     ReactorHandle::submit(|id| {
         let data = SqeData::Ping {
             delay,
-            token: h.get_addr(&token),
+            token: ShmBox::as_shm(&token),
         };
         (Op::new(id, Ping { token }), Sqe { id, data })
     })

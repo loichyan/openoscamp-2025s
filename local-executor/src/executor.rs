@@ -53,8 +53,6 @@ impl Executor {
         let mut fut = pin!(fut);
         loop {
             if let Poll::Ready(output) = fut.as_mut().poll(&mut cx) {
-                // Remove all spawned tasks.
-                queue.borrow_mut().clear();
                 return output;
             }
 

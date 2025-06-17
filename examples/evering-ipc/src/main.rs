@@ -1,5 +1,5 @@
+#![feature(layout_for_ptr)]
 #![feature(local_waker)]
-
 mod op;
 mod reactor;
 mod shm;
@@ -22,6 +22,7 @@ use nix::sys::stat::Mode;
 
 use self::op::{Rqe, RqeData, Sqe, SqeData};
 use self::reactor::Reactor;
+use self::shm::ShmBox;
 
 type ShmHeader = self::shm::ShmHeader<Sqe, Rqe>;
 type Sender = uring::UringA<Sqe, Rqe>;
@@ -155,12 +156,9 @@ pub fn main() -> Result<()> {
     Ok(())
 }
 
-fn start_client(h: &'static ShmHeader) -> bool {
-    let (allocator, sq);
-    unsafe {
-        allocator = h.take_allocator();
-        sq = Sender::from_raw(h.build_raw_uring());
-    }
+fn start_client(shm: &'static ShmHeader) -> bool {
+    crate::shm::boxed::init(shm);
+    let sq = unsafe { Sender::from_raw(shm.build_raw_uring()) };
     tracing::info!("started client, connected={}", sq.is_connected());
 
     let reactor = Reactor::new(sq);
@@ -172,16 +170,16 @@ fn start_client(h: &'static ShmHeader) -> bool {
                 tracing::info!("requested ping({i}), delay={delay:?}ms");
 
                 let delay = fastrand::u64(0..500);
-                let token = unsafe { allocator.alloc_array_uninit(fastrand::usize(8..=32)) };
+                let token = ShmBox::new_uninit_slice(fastrand::usize(8..=32));
 
                 let now = std::time::Instant::now();
-                let token = op::ping(h, Duration::from_millis(delay), token).await;
+                let token = op::ping(Duration::from_millis(delay), token).await;
                 let elapsed = now.elapsed().as_millis();
 
                 let token_str = std::str::from_utf8(&token).unwrap();
                 tracing::info!("responded pong({i}), elapsed={elapsed}ms, token={token_str}");
 
-                unsafe { allocator.dealloc(token) }
+                drop(token);
             })
             .map(|fut| local_executor::spawn(Rc::downgrade(&rt), fut))
             .collect::<Vec<_>>();
@@ -196,8 +194,8 @@ fn start_client(h: &'static ShmHeader) -> bool {
     reactor.into_sender().dispose_raw().is_ok()
 }
 
-fn start_server(h: &'static ShmHeader) -> bool {
-    let mut rq = unsafe { Receiver::from_raw(h.build_raw_uring()) };
+fn start_server(shm: &'static ShmHeader) -> bool {
+    let mut rq = unsafe { Receiver::from_raw(shm.build_raw_uring()) };
     tracing::info!("started server, connected={}", rq.is_connected());
 
     let mut local_queue = Vec::new();
@@ -213,7 +211,7 @@ fn start_server(h: &'static ShmHeader) -> bool {
                 SqeData::Ping { delay, token } => {
                     std::thread::sleep(delay);
                     unsafe {
-                        let mut token = h.get_ptr(token);
+                        let mut token = shm.get_ptr(token);
                         for c in token.as_mut().iter_mut() {
                             c.write(fastrand::alphanumeric() as u32 as u8);
                         }
