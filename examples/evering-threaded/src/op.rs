@@ -3,7 +3,7 @@ use std::time::Duration;
 use evering::driver::OpId;
 use evering::op::{Cancellation, Completable};
 
-use crate::reactor::ReactorHandle;
+use crate::runtime::RuntimeHandle;
 
 #[derive(Debug)]
 pub(crate) struct Sqe {
@@ -33,20 +33,20 @@ pub(crate) struct Ping;
 
 unsafe impl Completable for Ping {
     type Output = u64;
-    type Driver = ReactorHandle;
-    fn complete(self, _drv: &ReactorHandle, payload: RqeData) -> Self::Output {
+    type Driver = RuntimeHandle;
+    fn complete(self, _drv: &RuntimeHandle, payload: RqeData) -> Self::Output {
         let RqeData::Pong { token } = payload else {
             unreachable!()
         };
         token
     }
-    fn cancel(self, _drv: &ReactorHandle) -> Cancellation {
+    fn cancel(self, _drv: &RuntimeHandle) -> Cancellation {
         Cancellation::noop()
     }
 }
 
 pub async fn ping(delay: Duration) -> u64 {
-    ReactorHandle::submit(Ping, |id, _| Sqe {
+    RuntimeHandle::submit(Ping, |id, _| Sqe {
         id,
         data: SqeData::Ping { delay },
     })
@@ -57,19 +57,19 @@ pub(crate) struct Exit;
 
 unsafe impl Completable for Exit {
     type Output = ();
-    type Driver = ReactorHandle;
-    fn complete(self, _drv: &ReactorHandle, payload: RqeData) -> Self::Output {
+    type Driver = RuntimeHandle;
+    fn complete(self, _drv: &RuntimeHandle, payload: RqeData) -> Self::Output {
         let RqeData::Exited = payload else {
             unreachable!()
         };
     }
-    fn cancel(self, _drv: &ReactorHandle) -> Cancellation {
+    fn cancel(self, _drv: &RuntimeHandle) -> Cancellation {
         Cancellation::noop()
     }
 }
 
 pub async fn exit() {
-    ReactorHandle::submit(Exit, |id, _| Sqe {
+    RuntimeHandle::submit(Exit, |id, _| Sqe {
         id,
         data: SqeData::Exit,
     })

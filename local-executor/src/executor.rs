@@ -62,7 +62,7 @@ impl Executor {
         }
     }
 
-    pub fn spawn<Ex, T, F>(handle: Ex, fut: F) -> Task<T>
+    pub fn spawn<T, F, Ex>(handle: Ex, fut: F) -> Task<T>
     where
         T: 'static,
         F: 'static + Future<Output = T>,

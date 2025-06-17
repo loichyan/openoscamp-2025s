@@ -1,26 +1,23 @@
 #![feature(local_waker)]
 
 mod op;
-mod reactor;
+mod runtime;
 
 use std::collections::VecDeque;
-use std::rc::Rc;
 use std::time::Duration;
 
 use evering::uring::Uring;
-use local_executor::Executor;
 
 use self::op::{Rqe, RqeData, Sqe, SqeData};
-use self::reactor::Reactor;
+use self::runtime::{Runtime, RuntimeHandle};
 
 fn main() {
     let (sq, mut rq) = evering::uring::Builder::new().build();
 
     std::thread::scope(|cx| {
         cx.spawn(|| {
-            let reactor = Reactor::new(sq);
-            let rt = Rc::new(Executor::new());
-            rt.block_on(reactor.run_on(async {
+            let rt = Runtime::new(sq);
+            rt.block_on(async {
                 let tasks = (0..10)
                     .map(|i| async move {
                         let now = std::time::Instant::now();
@@ -28,7 +25,7 @@ fn main() {
                         let elapsed = now.elapsed().as_millis();
                         println!("finished pong({i}) elapsed={elapsed}ms with token={token:#x}");
                     })
-                    .map(|fut| local_executor::spawn(Rc::downgrade(&rt), fut))
+                    .map(RuntimeHandle::spawn)
                     .take(10)
                     .collect::<Vec<_>>();
 
@@ -37,7 +34,8 @@ fn main() {
                 }
                 op::exit().await;
                 println!("finished exit");
-            }));
+            });
+            drop(rt.into_sender());
         });
         cx.spawn(|| {
             let mut local_queue = VecDeque::new();

@@ -1,11 +1,11 @@
 #![feature(layout_for_ptr)]
 #![feature(local_waker)]
+
 mod op;
-mod reactor;
+mod runtime;
 mod shm;
 
 use std::os::fd::{AsFd, FromRawFd, OwnedFd};
-use std::rc::Rc;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -14,10 +14,9 @@ use argh::FromArgs;
 use bytesize::ByteSize;
 use evering::uring;
 use evering::uring::Uring;
-use local_executor::Executor;
 
 use self::op::{Rqe, RqeData, Sqe, SqeData};
-use self::reactor::Reactor;
+use self::runtime::{Runtime, RuntimeHandle};
 use self::shm::ShmBox;
 
 type ShmHeader = self::shm::ShmHeader<Sqe, Rqe>;
@@ -152,9 +151,8 @@ fn start_client(shm: &'static ShmHeader) -> bool {
     let sq = unsafe { Sender::from_raw(shm.build_raw_uring()) };
     tracing::info!("started client, connected={}", sq.is_connected());
 
-    let reactor = Reactor::new(sq);
-    let rt = Rc::new(Executor::new());
-    rt.block_on(reactor.run_on(async {
+    let rt = Runtime::new(sq);
+    rt.block_on(async {
         let tasks = (0..16)
             .map(|i| async move {
                 let delay = fastrand::u64(50..500);
@@ -170,7 +168,7 @@ fn start_client(shm: &'static ShmHeader) -> bool {
                 let token_str = std::str::from_utf8(&token).unwrap();
                 tracing::info!("responded pong({i}), elapsed={elapsed}ms, token={token_str}");
             })
-            .map(|fut| local_executor::spawn(Rc::downgrade(&rt), fut))
+            .map(RuntimeHandle::spawn)
             .collect::<Vec<_>>();
 
         for task in tasks {
@@ -178,9 +176,9 @@ fn start_client(shm: &'static ShmHeader) -> bool {
         }
         op::exit().await;
         tracing::info!("exited client");
-    }));
+    });
 
-    reactor.into_sender().dispose_raw().is_ok()
+    rt.into_sender().dispose_raw().is_ok()
 }
 
 fn start_server(shm: &'static ShmHeader) -> bool {

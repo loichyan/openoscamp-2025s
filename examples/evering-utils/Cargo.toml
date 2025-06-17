@@ -7,5 +7,6 @@ license.workspace = true
 edition.workspace = true
 
 [dependencies]
+local-executor.workspace = true
 evering.workspace = true
 pin-project-lite.workspace = true

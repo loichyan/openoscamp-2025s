@@ -5,16 +5,18 @@ use core::task::{Context, Poll};
 use evering::driver::{Driver, DriverHandle, OpId};
 use evering::op::{Completable, Op};
 use evering::uring::Uring;
+use local_executor::{Executor, ExecutorHandle, Task};
 
-#[non_exhaustive]
-pub struct Reactor<P, U: Uring> {
+pub struct Runtime<P, U: Uring> {
+    pub executor: Executor,
     pub uring: RefCell<U>,
     pub driver: Driver<P, U::Ext>,
 }
 
-impl<P, U: Uring> Reactor<P, U> {
+impl<P, U: Uring> Runtime<P, U> {
     pub fn new(uring: U) -> Self {
         Self {
+            executor: Executor::new(),
             uring: RefCell::new(uring),
             driver: Driver::new(),
         }
@@ -26,37 +28,55 @@ impl<P, U: Uring> Reactor<P, U> {
         Fut: Future,
     {
         RunOn {
-            rx: self,
+            rt: self,
             complete,
             fut,
         }
     }
 
-    pub fn submit<T, Rx>(handle: Rx, data: T, new_entry: impl FnOnce(OpId, &mut T) -> U::A) -> Op<T>
+    pub fn block_on<T>(&self, fut: impl Future<Output = T>) -> T {
+        self.executor.block_on(fut)
+    }
+
+    pub fn into_uring(self) -> U {
+        self.uring.into_inner()
+    }
+
+    pub fn spawn<T, F, Rt>(handle: Rt, fut: F) -> Task<T>
     where
-        T: Completable<Driver = Rx>,
-        Rx: ReactorHandle<Payload = P, Uring = U>,
-        Rx: DriverHandle<Payload = P, Ext = U::Ext>,
+        T: 'static,
+        F: 'static + Future<Output = T>,
+        Rt: RuntimeHandle<Payload = P, Uring = U>,
+        Rt: ExecutorHandle,
+    {
+        Executor::spawn(handle, fut)
+    }
+
+    pub fn submit<T, Rt>(handle: Rt, data: T, new_entry: impl FnOnce(OpId, &mut T) -> U::A) -> Op<T>
+    where
+        T: Completable<Driver = Rt>,
+        Rt: RuntimeHandle<Payload = P, Uring = U>,
+        Rt: DriverHandle<Payload = P, Ext = U::Ext>,
         U::Ext: Default,
     {
         Self::submit_ext(handle, <_>::default(), data, new_entry)
     }
 
-    pub fn submit_ext<T, Rx>(
-        handle: Rx,
+    pub fn submit_ext<T, Rt>(
+        handle: Rt,
         ext: U::Ext,
         mut data: T,
         new_entry: impl FnOnce(OpId, &mut T) -> U::A,
     ) -> Op<T>
     where
-        T: Completable<Driver = Rx>,
-        Rx: ReactorHandle<Payload = P, Uring = U>,
-        Rx: DriverHandle<Payload = P, Ext = U::Ext>,
+        T: Completable<Driver = Rt>,
+        Rt: RuntimeHandle<Payload = P, Uring = U>,
+        Rt: DriverHandle<Payload = P, Ext = U::Ext>,
     {
-        let rx = ReactorHandle::get(&handle);
-        let id = rx.driver.submit_ext(ext);
+        let rt = RuntimeHandle::get(&handle);
+        let id = rt.driver.submit_ext(ext);
         let ent = new_entry(id, &mut data);
-        rx.uring
+        rt.uring
             .borrow_mut()
             .send(ent)
             // TODO: queue entries locally
@@ -70,7 +90,7 @@ pin_project_lite::pin_project! {
     where
         U: Uring,
     {
-        rx: &'a Reactor<P, U>,
+        rt: &'a Runtime<P, U>,
         complete:C,
         #[pin]
         fut: Fut,
@@ -87,7 +107,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
-        for ent in this.rx.uring.borrow_mut().recv_bulk() {
+        for ent in this.rt.uring.borrow_mut().recv_bulk() {
             (this.complete)(ent);
         }
         let mut noop_cx = Context::from_waker(core::task::Waker::noop());
@@ -103,35 +123,49 @@ where
     }
 }
 
-pub trait ReactorHandle: 'static + Unpin {
+pub trait RuntimeHandle: 'static + Unpin {
     type Payload;
     type Uring: Uring;
-    type Ref: core::ops::Deref<Target = Reactor<Self::Payload, Self::Uring>>;
+    type Ref: core::ops::Deref<Target = Runtime<Self::Payload, Self::Uring>>;
 
     fn get(&self) -> Self::Ref;
 }
-impl<P, U> ReactorHandle for alloc::rc::Weak<Reactor<P, U>>
+impl<P, U> RuntimeHandle for alloc::rc::Weak<Runtime<P, U>>
 where
     P: 'static,
     U: 'static + Uring,
 {
     type Payload = P;
     type Uring = U;
-    type Ref = alloc::rc::Rc<Reactor<P, U>>;
+    type Ref = alloc::rc::Rc<Runtime<P, U>>;
 
     fn get(&self) -> Self::Ref {
         self.upgrade().expect("not inside a valid executor")
     }
 }
 
-pub struct DriverRef<R: ReactorHandle>(pub R::Ref);
-impl<Rx: ReactorHandle> DriverRef<Rx> {
-    pub fn new(rx: &Rx) -> Self {
-        Self(rx.get())
+pub struct ExecutorRef<R: RuntimeHandle>(pub R::Ref);
+impl<Rt: RuntimeHandle> ExecutorRef<Rt> {
+    pub fn new(rt: &Rt) -> Self {
+        Self(rt.get())
     }
 }
-impl<Rx: ReactorHandle> core::ops::Deref for DriverRef<Rx> {
-    type Target = Driver<Rx::Payload, <Rx::Uring as Uring>::Ext>;
+impl<Rt: RuntimeHandle> core::ops::Deref for ExecutorRef<Rt> {
+    type Target = Executor;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0.executor
+    }
+}
+
+pub struct DriverRef<R: RuntimeHandle>(pub R::Ref);
+impl<Rt: RuntimeHandle> DriverRef<Rt> {
+    pub fn new(rt: &Rt) -> Self {
+        Self(rt.get())
+    }
+}
+impl<Rt: RuntimeHandle> core::ops::Deref for DriverRef<Rt> {
+    type Target = Driver<Rt::Payload, <Rt::Uring as Uring>::Ext>;
 
     fn deref(&self) -> &Self::Target {
         &self.0.driver
