@@ -1,0 +1,49 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug 'evering-ipc:server'",
+      "cargo": {
+        "args": ["build", "--bin=evering-ipc", "--package=evering-ipc"],
+        "filter": {
+          "kind": "bin",
+          "name": "evering-ipc"
+        }
+      },
+      "args": [
+        "--shmfile",
+        "shmipc-test",
+        "--shmsize",
+        "1048576", // 1MB
+        "--create",
+        "--app",
+        "server"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug 'evering-ipc:client'",
+      "cargo": {
+        "args": ["build", "--bin=evering-ipc", "--package=evering-ipc"],
+        "filter": {
+          "kind": "bin",
+          "name": "evering-ipc"
+        }
+      },
+      "args": [
+        "--shmfile",
+        "shmipc-test",
+        "--shmsize",
+        "1048576", // 1MB
+        "--app",
+        "client"
+      ],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
+
