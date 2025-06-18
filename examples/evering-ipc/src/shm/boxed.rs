@@ -14,29 +14,30 @@ impl<T: ?Sized> ShmBox<T> {
         ShmHandle::get().get_shm(this.0)
     }
 
-    pub fn into_raw(self) -> NonNull<T> {
+    pub fn into_raw(self) -> *mut T {
         let ptr = self.0;
         std::mem::forget(self);
-        ptr
+        ptr.as_ptr()
+    }
+
+    pub unsafe fn from_raw(ptr: *mut T) -> Self {
+        unsafe { Self(NonNull::new_unchecked(ptr)) }
     }
 }
 
 impl<T> ShmBox<T> {
     pub fn new(val: T) -> Self {
-        ShmBox(AloHandle::get().alloc(val))
+        unsafe { Self::from_raw(AloHandle::get().alloc(val).as_ptr()) }
     }
 }
 
 impl<T> ShmBox<MaybeUninit<T>> {
     pub fn new_uninit() -> Self {
-        ShmBox(AloHandle::get().alloc_uninit())
+        unsafe { Self::from_raw(AloHandle::get().alloc_uninit().as_ptr()) }
     }
 
     pub unsafe fn assume_init(self) -> ShmBox<T> {
-        unsafe {
-            let ptr: NonNull<T> = std::mem::transmute(self.into_raw());
-            ShmBox(ptr)
-        }
+        unsafe { ShmBox::from_raw(self.into_raw().cast()) }
     }
 }
 
@@ -45,20 +46,17 @@ impl<T> ShmBox<[T]> {
     where
         T: Copy,
     {
-        ShmBox(AloHandle::get().alloc_copied_slice(src))
+        unsafe { Self::from_raw(AloHandle::get().alloc_copied_slice(src).as_ptr()) }
     }
 }
 
 impl<T> ShmBox<[MaybeUninit<T>]> {
     pub fn new_uninit_slice(n: usize) -> Self {
-        ShmBox(AloHandle::get().alloc_uninit_slice(n))
+        unsafe { Self::from_raw(AloHandle::get().alloc_uninit_slice(n).as_ptr()) }
     }
 
     pub unsafe fn assume_init(self) -> ShmBox<[T]> {
-        unsafe {
-            let ptr: NonNull<[T]> = std::mem::transmute(self.into_raw());
-            ShmBox(ptr)
-        }
+        unsafe { ShmBox::from_raw(self.into_raw() as *mut [T]) }
     }
 }
 

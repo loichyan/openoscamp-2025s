@@ -157,7 +157,7 @@ impl Allocator {
         unsafe {
             let mut ptr = self.alloc_uninit();
             ptr.as_mut().write(val);
-            std::mem::transmute(ptr)
+            ptr.cast()
         }
     }
 
@@ -168,9 +168,9 @@ impl Allocator {
     pub fn alloc_copied_slice<T: Copy>(&self, src: &[T]) -> NonNull<[T]> {
         unsafe {
             let mut ptr = self.alloc_uninit_slice(src.len());
-            let src_uninit: &[MaybeUninit<T>] = std::mem::transmute(src);
-            ptr.as_mut().copy_from_slice(src_uninit);
-            std::mem::transmute(ptr)
+            let src_uninit = src as *const [T] as *const [MaybeUninit<T>];
+            ptr.as_mut().copy_from_slice(&*src_uninit);
+            NonNull::new_unchecked(ptr.as_ptr() as *mut [T])
         }
     }
 
