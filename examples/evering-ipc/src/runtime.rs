@@ -48,7 +48,7 @@ thread_local! {
     static CX: RefCell<Weak<RuntimeInner>> = const { RefCell::new(Weak::new()) };
 }
 
-pub(crate) struct RuntimeHandle;
+pub struct RuntimeHandle;
 
 impl evering_utils::runtime::RuntimeHandle for RuntimeHandle {
     type Payload = RqeData;

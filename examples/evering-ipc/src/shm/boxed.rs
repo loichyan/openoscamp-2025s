@@ -1,4 +1,4 @@
-#![allow(dead_code)] // FIXME: dead code
+#![allow(dead_code)]
 
 use std::cell::Cell;
 use std::fmt;
@@ -14,28 +14,35 @@ impl<T: ?Sized> ShmBox<T> {
         ShmHandle::get().get_shm(this.0)
     }
 
-    pub fn into_raw(self) -> *mut T {
+    pub fn into_raw(self) -> NonNull<T> {
         let ptr = self.0;
         std::mem::forget(self);
-        ptr.as_ptr()
+        ptr
     }
 
-    pub unsafe fn from_raw(ptr: *mut T) -> Self {
-        unsafe { Self(NonNull::new_unchecked(ptr)) }
+    /// # Safety
+    ///
+    /// The given `ptr` must be a valid pointer managed by [`Allocator`].
+    pub unsafe fn from_raw(ptr: NonNull<T>) -> Self {
+        ShmBox(ptr)
     }
 }
 
 impl<T> ShmBox<T> {
     pub fn new(val: T) -> Self {
-        unsafe { Self::from_raw(AloHandle::get().alloc(val).as_ptr()) }
+        unsafe { Self::from_raw(AloHandle::get().alloc(val)) }
     }
 }
 
 impl<T> ShmBox<MaybeUninit<T>> {
     pub fn new_uninit() -> Self {
-        unsafe { Self::from_raw(AloHandle::get().alloc_uninit().as_ptr()) }
+        unsafe { Self::from_raw(AloHandle::get().alloc_uninit()) }
     }
 
+    /// # Safety
+    ///
+    /// The underlying value must be initialized properly. See
+    /// [`MaybeUninit::assume_init`] for more information.
     pub unsafe fn assume_init(self) -> ShmBox<T> {
         unsafe { ShmBox::from_raw(self.into_raw().cast()) }
     }
@@ -46,17 +53,24 @@ impl<T> ShmBox<[T]> {
     where
         T: Copy,
     {
-        unsafe { Self::from_raw(AloHandle::get().alloc_copied_slice(src).as_ptr()) }
+        unsafe { Self::from_raw(AloHandle::get().alloc_copied_slice(src)) }
     }
 }
 
 impl<T> ShmBox<[MaybeUninit<T>]> {
     pub fn new_uninit_slice(n: usize) -> Self {
-        unsafe { Self::from_raw(AloHandle::get().alloc_uninit_slice(n).as_ptr()) }
+        unsafe { Self::from_raw(AloHandle::get().alloc_uninit_slice(n)) }
     }
 
+    /// # Safety
+    ///
+    /// Each element in the underlying slice must be initialized properly. See
+    /// [`MaybeUninit::assume_init`] for more information.
     pub unsafe fn assume_init(self) -> ShmBox<[T]> {
-        unsafe { ShmBox::from_raw(self.into_raw() as *mut [T]) }
+        unsafe {
+            let ptr = self.into_raw().as_ptr();
+            ShmBox::from_raw(NonNull::new_unchecked(ptr as *mut [T]))
+        }
     }
 }
 

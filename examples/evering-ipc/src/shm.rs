@@ -105,7 +105,7 @@ impl<A, B, Ext> ShmHeader<A, B, Ext> {
             let block = NonNull::slice_from_raw_parts(data, data_end - data_start);
 
             tracing::info!(
-                "added free memory, start={data:#x?}, length={}",
+                "added free memory, addr={data:#x?}, size={}",
                 bytesize::ByteSize(block.len() as u64).display().iec_short()
             );
             self.allocator
@@ -185,7 +185,7 @@ impl Allocator {
     ///
     /// The given `ptr` must belong to this allocator.
     pub unsafe fn dealloc<T: ?Sized>(&self, ptr: NonNull<T>) {
-        unsafe { self.dealloc_raw(ptr.cast(), Layout::for_value_raw(ptr.as_ptr())) }
+        unsafe { self.dealloc_raw(ptr.cast(), Layout::for_value(ptr.as_ref())) }
     }
 
     unsafe fn alloc_raw(&self, layout: Layout) -> NonNull<u8> {

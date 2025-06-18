@@ -8,19 +8,19 @@ use crate::runtime::RuntimeHandle;
 use crate::shm::{ShmBox, ShmToken};
 
 #[derive(Debug)]
-pub(crate) struct Sqe {
+pub struct Sqe {
     pub id: OpId,
     pub data: SqeData,
 }
 
 #[derive(Debug)]
-pub(crate) struct Rqe {
+pub struct Rqe {
     pub id: OpId,
     pub data: RqeData,
 }
 
 #[derive(Debug)]
-pub(crate) enum SqeData {
+pub enum SqeData {
     Exit,
     Ping {
         delay: Duration,
@@ -29,15 +29,14 @@ pub(crate) enum SqeData {
 }
 
 #[derive(Debug)]
-pub(crate) enum RqeData {
+pub enum RqeData {
     Exited,
     Pong,
 }
 
-pub(crate) struct Ping {
+struct Ping {
     token: ShmBox<[MaybeUninit<u8>]>,
 }
-
 unsafe impl Completable for Ping {
     type Output = ShmBox<[u8]>;
     type Driver = RuntimeHandle;
@@ -63,8 +62,7 @@ pub async fn ping(delay: Duration, token: ShmBox<[MaybeUninit<u8>]>) -> ShmBox<[
     .await
 }
 
-pub(crate) struct Exit;
-
+struct Exit;
 unsafe impl Completable for Exit {
     type Output = ();
     type Driver = RuntimeHandle;
