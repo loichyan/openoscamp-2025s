@@ -57,4 +57,3 @@
 [^9]: <https://www.kernel.org/doc/html/v6.1/scheduler/sched-domains.html>
 [^10]: <https://rcore-os.cn/rCore-Tutorial-Book-v3/chapter3/3multiprogramming.html>
 [^11]: <https://rcore-os.cn/rCore-Tutorial-Book-v3/chapter3/4time-sharing-system.html>
-<!-- dprint-ignore-end -->

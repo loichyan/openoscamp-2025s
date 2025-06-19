@@ -53,4 +53,3 @@
 [^2]: <https://www.kernel.org/doc/html/v6.1/x86/pti.html>
 [^3]: <https://github.com/arceos-org/arceos/>
 [^4]: <https://github.com/rustsbi/fast-trap/>
-<!-- dprint-ignore-end -->
