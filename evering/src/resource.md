@@ -209,6 +209,7 @@ let resource = make_resource();
 send_request(resource);
 
 let id = drv.submit_ext(resource);
+//                      ^ 将资源作为 extension 存放在 Driver 中
 let op = make_op(id, Request {}); // <- 不再需要储存资源指针
 spawn_task(op);
 
@@ -216,7 +217,7 @@ spawn_task(op);
 
 let data = recv_response();
 if let Err((_, resource)) = drv.complete_ext(id, ()) {
-    //         ^ 这里可以取得对资源的指针
+    //         ^ Driver 将一直保存该资源，直到对应操作的生命周期结束
     // SAFETY: 同上所述
     unsafe { resource.drop_in_place() }
 }
