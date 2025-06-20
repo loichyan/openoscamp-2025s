@@ -23,7 +23,6 @@ use std::time::{Duration, Instant};
 
 use bytesize::ByteSize;
 use criterion::{Criterion, criterion_group, criterion_main};
-use tokio::task::spawn_local;
 
 const BUFSIZES: &[usize] = &[
     64,
@@ -57,6 +56,7 @@ fn make_shmid(pref: &str) -> String {
 fn bench_evering(id: &str, iters: usize, bufsize: usize) -> Duration {
     use evering::uring::Uring;
     use evering_ipc::*;
+    use tokio::task::spawn_local;
 
     let shmid = make_shmid(id);
     let shmid = CString::new(shmid).unwrap();
@@ -162,9 +162,10 @@ fn bench_evering(id: &str, iters: usize, bufsize: usize) -> Duration {
 fn bench_epoll(id: &str, iters: usize, bufsize: usize) -> Duration {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::{UnixListener, UnixStream};
+    use tokio::task::spawn_local;
 
     const PING: i32 = 1;
-    const PONG: i32 = 1;
+    const PONG: i32 = 2;
 
     let sock = Path::new("/dev/shm").join(make_shmid(id));
 
@@ -241,6 +242,142 @@ fn bench_epoll(id: &str, iters: usize, bufsize: usize) -> Duration {
     elapsed
 }
 
+fn bench_io_uring(id: &str, iters: usize, bufsize: usize) -> Duration {
+    use tokio::task::spawn_local;
+    use tokio_uring::BufResult;
+    use tokio_uring::buf::BoundedBuf;
+    use tokio_uring::net::{UnixListener, UnixStream};
+
+    macro_rules! tri {
+        ($expr:expr) => {{
+            let (r, buf) = $expr;
+            match r {
+                Ok(t) => (t, buf),
+                Err(e) => return (Err(core::convert::Into::into(e)), buf),
+            }
+        }};
+    }
+
+    macro_rules! unwrap {
+        ($buf:ident, $expr:expr) => {{
+            let r;
+            (r, $buf) = $expr;
+            core::result::Result::unwrap(r)
+        }};
+    }
+
+    async fn read_exact(
+        conn: &UnixStream,
+        buf: Vec<u8>,
+        mut size: usize,
+    ) -> BufResult<(), Vec<u8>> {
+        assert!(buf.len() >= size);
+        let mut sbuf = buf.slice(..size);
+        let (r, sbuf) = async {
+            loop {
+                let n;
+                (n, sbuf) = tri!(conn.read(sbuf).await);
+                size -= n;
+                if size == 0 {
+                    return (Ok(()), sbuf);
+                }
+                sbuf = sbuf.slice(n..);
+            }
+        }
+        .await;
+        (r, sbuf.into_inner())
+    }
+
+    async fn read_i32(conn: &UnixStream, buf: Vec<u8>) -> BufResult<i32, Vec<u8>> {
+        let (_, buf) = tri!(read_exact(conn, buf, 4).await);
+        let i = i32::from_be_bytes(buf[..4].try_into().expect("buf too small"));
+        (Ok(i), buf)
+    }
+
+    async fn write_i32(conn: &UnixStream, buf: Vec<u8>, i: i32) -> BufResult<(), Vec<u8>> {
+        let mut sbuf = buf.slice(..4);
+        sbuf.copy_from_slice(&i.to_be_bytes());
+        let (r, sbuf) = conn.write_all(sbuf).await;
+        (r, sbuf.into_inner())
+    }
+
+    const PING: i32 = 1;
+    const PONG: i32 = 2;
+
+    let sock = Path::new("/dev/shm").join(make_shmid(id));
+
+    let mut elapsed = Duration::ZERO;
+    let (signal_tx, signal_rx) = tokio::sync::oneshot::channel::<()>();
+    let (exit_tx, mut exit_rx) = tokio::sync::oneshot::channel::<()>();
+    std::thread::scope(|cx| {
+        // Server
+        cx.spawn(|| {
+            tokio_uring::start(async {
+                let listener = UnixListener::bind(&sock).unwrap();
+                signal_tx.send(()).unwrap();
+                let worker = |conn: UnixStream| async move {
+                    let mut wbuf = vec![0; bufsize];
+                    loop {
+                        let r;
+                        (r, wbuf) = read_i32(&conn, wbuf).await;
+                        match r {
+                            Ok(i) => {
+                                assert_eq!(i, PING);
+                                unwrap!(wbuf, write_i32(&conn, wbuf, PONG).await);
+                                wbuf.fill(0);
+                                unwrap!(wbuf, conn.write_all(wbuf).await);
+                            },
+                            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                                return;
+                            },
+                            Err(e) => panic!("{e}"),
+                        }
+                    }
+                };
+                loop {
+                    tokio::select! {
+                        r = listener.accept() => { spawn_local(worker(r.unwrap())); },
+                        _ = &mut exit_rx =>  break,
+                    }
+                }
+            });
+        });
+        // Client
+        cx.spawn(|| {
+            tokio_uring::start(async {
+                signal_rx.await.unwrap();
+                let tasks = std::iter::repeat_with(|| {
+                    let sock = sock.clone();
+                    async move {
+                        let conn = UnixStream::connect(sock).await.unwrap();
+                        let mut rbuf = vec![0; bufsize];
+                        for _ in 0..(iters / CONCURRENCY) {
+                            unwrap!(rbuf, write_i32(&conn, rbuf, PING).await);
+                            let i = unwrap!(rbuf, read_i32(&conn, rbuf).await);
+                            assert_eq!(i, PONG);
+                            unwrap!(rbuf, read_exact(&conn, rbuf, bufsize).await);
+                            assert!(rbuf.iter().all(|b| *b == 0));
+                        }
+                    }
+                })
+                .map(tokio_uring::spawn)
+                .take(CONCURRENCY)
+                .collect::<Vec<_>>();
+
+                let now = Instant::now();
+                for task in tasks {
+                    task.await.unwrap();
+                }
+                elapsed = now.elapsed();
+                exit_tx.send(()).unwrap();
+            });
+        });
+    });
+
+    _ = std::fs::remove_file(sock);
+    elapsed
+}
+
 fn groups(c: &mut Criterion) {
     type BenchFn = fn(&str, usize, usize) -> Duration;
     let mut g = c.benchmark_group("evering");
@@ -249,6 +386,7 @@ fn groups(c: &mut Criterion) {
         for (name, f) in [
             ("evering", bench_evering as BenchFn),
             ("epoll", bench_epoll as BenchFn),
+            ("io_uring", bench_io_uring as BenchFn),
         ] {
             let id = format!("ping_pong_{name}_{:02}_{bsize:.0}", i + 1);
             g.bench_function(&id, |b| {

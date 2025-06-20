@@ -29,13 +29,15 @@ features = ["fs", "mman"]
 
 [dev-dependencies]
 criterion = "0.6.0"
-tokio = { version = "1.45.1", features = [
-    "io-util",
-    "macros",
-    "net",
-    "rt",
-    "sync",
-] }
+
+[dev-dependencies.tokio]
+version = "1.45.1"
+features = ["io-util", "macros", "net", "rt", "sync"]
+
+[dev-dependencies.tokio-uring]
+# See <https://github.com/tokio-rs/tokio-uring/pull/325>
+git = "https://github.com/decathorpe/tokio-uring"
+rev = "025682b030561149621ed22e2e5f62034e4be5ed"
 
 [[bench]]
 name = "ping_pong"
