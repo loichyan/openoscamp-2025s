@@ -63,6 +63,19 @@ impl<P, Ext> Driver<P, Ext> {
         self.0.borrow_mut().submit(ext)
     }
 
+    /// Submits an operation if there is sufficient spare capacity, otherwise an
+    /// error is returned with the element.
+    pub fn try_submit(&self) -> Result<OpId, Ext>
+    where
+        Ext: Default,
+    {
+        self.try_submit_ext(Ext::default())
+    }
+
+    pub fn try_submit_ext(&self, ext: Ext) -> Result<OpId, Ext> {
+        self.0.borrow_mut().try_submit(ext)
+    }
+
     /// Completes a operation. It returns the given `payload` as an [`Err`] if
     /// the specified operation has been cancelled.
     ///
@@ -106,6 +119,14 @@ impl<P, Ext> DriverInner<P, Ext> {
             state: Lifecycle::Submitted,
             ext,
         }))
+    }
+
+    fn try_submit(&mut self, ext: Ext) -> Result<OpId, Ext> {
+        if self.ops.len() == self.ops.capacity() {
+            Err(ext)
+        } else {
+            Ok(self.submit(ext))
+        }
     }
 
     fn poll(&mut self, id: OpId, cx: &mut Context) -> Poll<(P, Ext)> {

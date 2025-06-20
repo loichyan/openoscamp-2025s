@@ -81,22 +81,39 @@ impl<P, U: Uring> Runtime<P, U> {
         Rt: DriverHandle<Payload = P, Ext = U::Ext>,
     {
         let rt = RuntimeHandle::get(&handle);
-        let id = rt.driver.submit_ext(ext);
-        let mut entry = Some(new_entry(id, &mut data));
-        core::future::poll_fn(move |cx| {
-            let ent = entry.take().unwrap();
-            if let Err(ent) = rt.uring.borrow_mut().send(ent) {
-                entry = Some(ent);
-                rt.pending_submissions
+
+        let mut ext = Some(ext);
+        let id = rt
+            .wait_for_ok(|| {
+                rt.driver
+                    .try_submit_ext(ext.take().unwrap())
+                    .map_err(|e| ext = Some(e))
+            })
+            .await;
+
+        let mut ent = Some(new_entry(id, &mut data));
+        rt.wait_for_ok(|| {
+            rt.uring
+                .borrow_mut()
+                .send(ent.take().unwrap())
+                .map_err(|e| ent = Some(e))
+        })
+        .await;
+
+        Op::new(handle, id, data)
+    }
+
+    async fn wait_for_ok<T>(&self, mut f: impl FnMut() -> Result<T, ()>) -> T {
+        core::future::poll_fn(|cx| match f() {
+            Ok(t) => Poll::Ready(t),
+            Err(_) => {
+                self.pending_submissions
                     .borrow_mut()
                     .push_back(cx.local_waker().clone());
                 Poll::Pending
-            } else {
-                Poll::Ready(())
-            }
+            },
         })
-        .await;
-        Op::new(handle, id, data)
+        .await
     }
 }
 
