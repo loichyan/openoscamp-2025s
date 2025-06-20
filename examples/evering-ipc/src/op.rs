@@ -24,7 +24,7 @@ pub enum SqeData {
     Exit,
     Ping {
         delay: Duration,
-        token: ShmToken<[MaybeUninit<u8>]>,
+        buf: ShmToken<[MaybeUninit<u8>]>,
     },
 }
 
@@ -35,7 +35,7 @@ pub enum RqeData {
 }
 
 struct Ping {
-    token: ShmBox<[MaybeUninit<u8>]>,
+    buf: ShmBox<[MaybeUninit<u8>]>,
 }
 unsafe impl Completable for Ping {
     type Output = ShmBox<[u8]>;
@@ -44,19 +44,19 @@ unsafe impl Completable for Ping {
         let RqeData::Pong = payload else {
             unreachable!()
         };
-        unsafe { self.token.assume_init() }
+        unsafe { self.buf.assume_init() }
     }
     fn cancel(self, _drv: &RuntimeHandle) -> Cancellation {
-        Cancellation::recycle(self.token)
+        Cancellation::recycle(self.buf)
     }
 }
 
-pub async fn ping(delay: Duration, token: ShmBox<[MaybeUninit<u8>]>) -> ShmBox<[u8]> {
-    RuntimeHandle::submit(Ping { token }, |id, p| Sqe {
+pub async fn ping(delay: Duration, buf: ShmBox<[MaybeUninit<u8>]>) -> ShmBox<[u8]> {
+    RuntimeHandle::submit(Ping { buf }, |id, p| Sqe {
         id,
         data: SqeData::Ping {
             delay,
-            token: ShmBox::as_shm(&p.token),
+            buf: ShmBox::as_shm(&p.buf),
         },
     })
     .await
