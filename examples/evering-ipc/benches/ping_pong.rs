@@ -38,6 +38,7 @@ const BUFSIZES: &[usize] = &[
 ];
 const CONCURRENCY: usize = 200;
 const SHMSIZE: usize = 1 << 30;
+const BUFVAL: u8 = b'X';
 
 fn block_on<T>(fut: impl Future<Output = T>) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -104,7 +105,7 @@ fn bench_evering(id: &str, iters: usize, bufsize: usize) -> Duration {
                         },
                         SqeData::Ping { delay: _, buf } => {
                             assert_eq!(buf.as_ptr().len(), bufsize);
-                            unsafe { buf.as_ptr().as_mut().fill(MaybeUninit::new(0)) }
+                            unsafe { buf.as_ptr().as_mut().fill(MaybeUninit::new(BUFVAL)) }
                             RqeData::Pong
                         },
                     };
@@ -134,7 +135,7 @@ fn bench_evering(id: &str, iters: usize, bufsize: usize) -> Duration {
                     let mut rbuf = ShmBox::new_uninit_slice(bufsize);
                     for _ in 0..(iters / CONCURRENCY) {
                         let rbuf_init = evering_ipc::op::ping(Duration::ZERO, rbuf).await;
-                        assert!(rbuf_init.iter().all(|b| *b == 0));
+                        assert!(rbuf_init.iter().all(|b| *b == BUFVAL));
                         rbuf = rbuf_init.into_uninit();
                     }
                 })
@@ -179,7 +180,7 @@ fn bench_epoll(id: &str, iters: usize, bufsize: usize) -> Duration {
                 let listener = UnixListener::bind(&sock).unwrap();
                 signal_tx.send(()).unwrap();
                 let worker = |mut conn: UnixStream| async move {
-                    let wbuf = vec![0; bufsize];
+                    let wbuf = vec![BUFVAL; bufsize];
                     loop {
                         match conn.read_i32().await {
                             Ok(i) => {
@@ -220,7 +221,7 @@ fn bench_epoll(id: &str, iters: usize, bufsize: usize) -> Duration {
                             conn.flush().await.unwrap();
                             assert_eq!(conn.read_i32().await.unwrap(), PONG);
                             conn.read_exact(&mut rbuf).await.unwrap();
-                            assert!(rbuf.iter().all(|b| *b == 0));
+                            assert!(rbuf.iter().all(|b| *b == BUFVAL));
                         }
                     }
                 })
@@ -324,7 +325,7 @@ fn bench_io_uring(id: &str, iters: usize, bufsize: usize) -> Duration {
                             Ok(i) => {
                                 assert_eq!(i, PING);
                                 unwrap!(wbuf, write_i32(&conn, wbuf, PONG).await);
-                                wbuf.fill(0);
+                                wbuf.fill(BUFVAL);
                                 unwrap!(wbuf, conn.write_all(wbuf).await);
                             },
                             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
@@ -356,7 +357,7 @@ fn bench_io_uring(id: &str, iters: usize, bufsize: usize) -> Duration {
                             let i = unwrap!(rbuf, read_i32(&conn, rbuf).await);
                             assert_eq!(i, PONG);
                             unwrap!(rbuf, read_exact(&conn, rbuf, bufsize).await);
-                            assert!(rbuf.iter().all(|b| *b == 0));
+                            assert!(rbuf.iter().all(|b| *b == BUFVAL));
                         }
                     }
                 })
