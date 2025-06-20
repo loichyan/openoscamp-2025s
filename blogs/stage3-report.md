@@ -1,8 +1,8 @@
 # 2025 春夏季开源操作系统训练营第三阶段总结报告
 
-## 第二阶段总结
+## 前二阶段总结
 
-见 [2025spring-rust-based-os-comp-stage2-report-loichyan](./2025spring-rust-based-os-comp-stage2-report-loichyan.md)．
+见 [stage2-report](./stage2-report.md)．
 
 ## 主要收获
 
