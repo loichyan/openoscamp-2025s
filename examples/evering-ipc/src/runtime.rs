@@ -21,8 +21,18 @@ impl Runtime {
 
     pub fn block_on<T>(&self, fut: impl Future<Output = T>) -> T {
         let _guard = RuntimeHandle::enter(&self.0);
-        let rt = &self.0;
-        rt.block_on(rt.run_on(|rqe| _ = rt.driver.complete(rqe.id, rqe.data), fut))
+        self.0.block_on(self.run_on_no_guard(fut))
+    }
+
+    pub async fn run_on<T>(&self, fut: impl Future<Output = T>) -> T {
+        let _guard = RuntimeHandle::enter(&self.0);
+        self.run_on_no_guard(fut).await
+    }
+
+    async fn run_on_no_guard<T>(&self, fut: impl Future<Output = T>) -> T {
+        self.0
+            .run_on(|rqe| _ = self.0.driver.complete(rqe.id, rqe.data), fut)
+            .await
     }
 
     pub fn into_uring(mut self) -> Sender {

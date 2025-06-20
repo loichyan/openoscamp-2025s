@@ -84,6 +84,15 @@ impl<A, B, Ext> ShmHeader<A, B, Ext> {
         unsafe { shm_mmap(fd, size, 0).map(NonNull::cast) }
     }
 
+    /// # Safety
+    ///
+    /// The supplied `ptr` and `size` must match the previous `mmap` call.
+    pub unsafe fn close(ptr: NonNull<Self>, size: usize) -> Result<()> {
+        unsafe {
+            nix::sys::mman::munmap(ptr.cast(), size).context("failed to munmap shared memory")
+        }
+    }
+
     pub fn build_raw_uring(&self) -> RawUring<A, B, Ext> {
         let mut raw = RawUring::<A, B, Ext>::dangling();
         unsafe {

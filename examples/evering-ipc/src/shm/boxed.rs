@@ -32,6 +32,10 @@ impl<T> ShmBox<T> {
     pub fn new(val: T) -> Self {
         unsafe { Self::from_raw(AloHandle::get().alloc(val)) }
     }
+
+    pub fn into_uninit(self) -> ShmBox<MaybeUninit<T>> {
+        unsafe { ShmBox::from_raw(self.into_raw().cast()) }
+    }
 }
 
 impl<T> ShmBox<MaybeUninit<T>> {
@@ -54,6 +58,13 @@ impl<T> ShmBox<[T]> {
         T: Copy,
     {
         unsafe { Self::from_raw(AloHandle::get().alloc_copied_slice(src)) }
+    }
+
+    pub fn into_uninit(self) -> ShmBox<[MaybeUninit<T>]> {
+        unsafe {
+            let ptr = self.into_raw().as_ptr();
+            ShmBox::from_raw(NonNull::new_unchecked(ptr as *mut [MaybeUninit<T>]))
+        }
     }
 }
 
