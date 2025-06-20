@@ -388,7 +388,7 @@ fn groups(c: &mut Criterion) {
             ("epoll", bench_epoll as BenchFn),
             ("io_uring", bench_io_uring as BenchFn),
         ] {
-            let id = format!("ping_pong_{name}_{:02}_{bsize:.0}", i + 1);
+            let id = format!("ping_pong_{:02}_{bsize:.0}_{name}", i + 1);
             g.bench_function(&id, |b| {
                 b.iter_custom(|iters| f(&id, iters as usize, bufsize))
             });
