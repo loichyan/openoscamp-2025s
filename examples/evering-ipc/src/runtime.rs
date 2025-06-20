@@ -25,7 +25,7 @@ impl Runtime {
         rt.block_on(rt.run_on(|rqe| _ = rt.driver.complete(rqe.id, rqe.data), fut))
     }
 
-    pub fn into_sender(mut self) -> Sender {
+    pub fn into_uring(mut self) -> Sender {
         let rc = unsafe { ManuallyDrop::take(&mut self.0) };
         std::mem::forget(self);
         Rc::into_inner(rc)
