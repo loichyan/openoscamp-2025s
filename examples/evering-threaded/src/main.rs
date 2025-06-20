@@ -18,7 +18,7 @@ fn main() {
         cx.spawn(|| {
             let rt = Runtime::new(sq);
             rt.block_on(async {
-                let tasks = (0..10)
+                let tasks = (0..)
                     .map(|i| async move {
                         let now = std::time::Instant::now();
                         let token = op::ping(Duration::from_millis(fastrand::u64(0..500))).await;
@@ -26,7 +26,7 @@ fn main() {
                         println!("finished pong({i}) elapsed={elapsed}ms with token={token:#x}");
                     })
                     .map(RuntimeHandle::spawn)
-                    .take(10)
+                    .take(fastrand::usize(32..=64))
                     .collect::<Vec<_>>();
 
                 for task in tasks {

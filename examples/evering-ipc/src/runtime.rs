@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
 use evering::driver::OpId;
-use evering::op::{Completable, Op};
+use evering::op::Completable;
 use evering_utils::runtime::ExecutorRef;
 use local_executor::Task;
 
@@ -37,6 +37,7 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         let rc = unsafe { ManuallyDrop::take(&mut self.0) };
+        // Leak the Driver so that no pending resources will expire.
         // TODO: should wait instead?
         if !rc.driver.is_empty() {
             std::mem::forget(rc);
@@ -99,10 +100,10 @@ impl RuntimeHandle {
         RuntimeInner::spawn(Self, fut)
     }
 
-    pub fn submit<T>(data: T, new_entry: impl FnOnce(OpId, &mut T) -> Sqe) -> Op<T>
+    pub async fn submit<T>(data: T, new_entry: impl FnOnce(OpId, &mut T) -> Sqe) -> T::Output
     where
         T: Completable<Driver = RuntimeHandle>,
     {
-        RuntimeInner::submit(Self, data, new_entry)
+        RuntimeInner::submit(Self, data, new_entry).await.await
     }
 }

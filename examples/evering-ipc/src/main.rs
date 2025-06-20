@@ -143,7 +143,7 @@ fn start_client(shm: &'static ShmHeader) -> bool {
 
     let rt = Runtime::new(sq);
     rt.block_on(async {
-        let tasks = (0..16)
+        let tasks = (0..)
             .map(|i| async move {
                 let delay = fastrand::u64(50..500);
                 tracing::info!("requested ping({i}), delay={delay:?}ms");
@@ -159,6 +159,7 @@ fn start_client(shm: &'static ShmHeader) -> bool {
                 tracing::info!("responded pong({i}), elapsed={elapsed}ms, token={token_str}");
             })
             .map(RuntimeHandle::spawn)
+            .take(fastrand::usize(32..=64))
             .collect::<Vec<_>>();
 
         for task in tasks {

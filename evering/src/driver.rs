@@ -34,6 +34,12 @@ impl<P, Ext> Driver<P, Ext> {
         Self(RefCell::new(DriverInner { ops: Slab::new() }))
     }
 
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(RefCell::new(DriverInner {
+            ops: Slab::with_capacity(capacity),
+        }))
+    }
+
     pub fn len(&self) -> usize {
         self.0.borrow().ops.len()
     }

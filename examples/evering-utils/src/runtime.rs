@@ -1,6 +1,7 @@
+use alloc::collections::VecDeque;
 use core::cell::RefCell;
 use core::pin::Pin;
-use core::task::{Context, Poll};
+use core::task::{Context, LocalWaker, Poll};
 
 use evering::driver::{Driver, DriverHandle, OpId};
 use evering::op::{Completable, Op};
@@ -11,14 +12,16 @@ pub struct Runtime<P, U: Uring> {
     pub executor: Executor,
     pub uring: RefCell<U>,
     pub driver: Driver<P, U::Ext>,
+    pub pending_submissions: RefCell<VecDeque<LocalWaker>>,
 }
 
 impl<P, U: Uring> Runtime<P, U> {
     pub fn new(uring: U) -> Self {
         Self {
             executor: Executor::new(),
+            driver: Driver::with_capacity(uring.header().size_a()),
             uring: RefCell::new(uring),
-            driver: Driver::new(),
+            pending_submissions: RefCell::default(),
         }
     }
 
@@ -52,17 +55,21 @@ impl<P, U: Uring> Runtime<P, U> {
         Executor::spawn(handle, fut)
     }
 
-    pub fn submit<T, Rt>(handle: Rt, data: T, new_entry: impl FnOnce(OpId, &mut T) -> U::A) -> Op<T>
+    pub async fn submit<T, Rt>(
+        handle: Rt,
+        data: T,
+        new_entry: impl FnOnce(OpId, &mut T) -> U::A,
+    ) -> Op<T>
     where
         T: Completable<Driver = Rt>,
         Rt: RuntimeHandle<Payload = P, Uring = U>,
         Rt: DriverHandle<Payload = P, Ext = U::Ext>,
         U::Ext: Default,
     {
-        Self::submit_ext(handle, <_>::default(), data, new_entry)
+        Self::submit_ext(handle, <_>::default(), data, new_entry).await
     }
 
-    pub fn submit_ext<T, Rt>(
+    pub async fn submit_ext<T, Rt>(
         handle: Rt,
         ext: U::Ext,
         mut data: T,
@@ -75,12 +82,20 @@ impl<P, U: Uring> Runtime<P, U> {
     {
         let rt = RuntimeHandle::get(&handle);
         let id = rt.driver.submit_ext(ext);
-        let ent = new_entry(id, &mut data);
-        rt.uring
-            .borrow_mut()
-            .send(ent)
-            // TODO: queue entries locally
-            .unwrap_or_else(|_| panic!("out of capacity"));
+        let mut entry = Some(new_entry(id, &mut data));
+        core::future::poll_fn(move |cx| {
+            let ent = entry.take().unwrap();
+            if let Err(ent) = rt.uring.borrow_mut().send(ent) {
+                entry = Some(ent);
+                rt.pending_submissions
+                    .borrow_mut()
+                    .push_back(cx.local_waker().clone());
+                Poll::Pending
+            } else {
+                Poll::Ready(())
+            }
+        })
+        .await;
         Op::new(handle, id, data)
     }
 }
@@ -108,6 +123,12 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
         for ent in this.rt.uring.borrow_mut().recv_bulk() {
+            _ = this
+                .rt
+                .pending_submissions
+                .borrow_mut()
+                .pop_front()
+                .map(LocalWaker::wake);
             (this.complete)(ent);
         }
         let mut noop_cx = Context::from_waker(core::task::Waker::noop());
