@@ -35,7 +35,12 @@
         });
       in
       {
-        devShells.default = mkShellNoCC { packages = [ rust-dev-with-rust-analyzer ]; };
+        devShells.default = mkShellNoCC {
+          packages = with pkgs; [
+            rust-dev-with-rust-analyzer
+            gnuplot
+          ];
+        };
       }
     );
 }
