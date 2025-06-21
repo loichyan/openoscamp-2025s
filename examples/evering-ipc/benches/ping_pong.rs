@@ -20,6 +20,8 @@ mod epoll;
 mod evering;
 #[path = "ping_pong/io_uring.rs"]
 mod io_uring;
+#[path = "ping_pong/shmipc.rs"]
+mod shmipc;
 
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -63,14 +65,14 @@ fn make_shmid(pref: &str) -> String {
 }
 
 fn groups(c: &mut Criterion) {
+    macro_rules! benches {
+        ($($name:ident),* $(,)?) => ([$((stringify!($name), self::$name::bench as BenchFn),)*]);
+    }
+
     let mut g = c.benchmark_group("evering");
     for (i, bufsize) in BUFSIZES.iter().copied().enumerate() {
         let bsize = ByteSize::b(bufsize as u64).display().iec_short();
-        for (name, f) in [
-            ("evering", evering::bench as BenchFn),
-            ("epoll", epoll::bench as BenchFn),
-            ("io_uring", io_uring::bench as BenchFn),
-        ] {
+        for (name, f) in benches![evering, epoll, io_uring, shmipc] {
             let id = format!("ping_pong_{:02}_{bsize:.0}_{name}", i + 1);
             g.bench_function(&id, |b| {
                 b.iter_custom(|iters| f(&id, iters as usize, bufsize))

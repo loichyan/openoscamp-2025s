@@ -18,7 +18,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     let shmfd = shmfd_owned.as_fd();
 
     let mut elapsed = Duration::ZERO;
-    let signal = Once::new();
+    let started = Once::new();
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
@@ -32,7 +32,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                 rq = ServerUring::from_raw(shm.as_ref().build_raw_uring());
                 evering_ipc::shm::init_server(shm.as_ref());
             }
-            signal.call_once(|| {});
+            started.call_once(|| {});
 
             let mut pending = None::<Rqe>;
             'outer: loop {
@@ -72,7 +72,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         });
         // Client
         cx.spawn(|| {
-            signal.wait();
+            started.wait();
             let (shm, sq);
             unsafe {
                 shm = ShmHeader::open(shmfd, SHMSIZE).unwrap();

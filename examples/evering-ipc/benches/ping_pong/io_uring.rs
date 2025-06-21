@@ -28,23 +28,24 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     let sock = Path::new("/dev/shm").join(make_shmid(id));
 
     let mut elapsed = Duration::ZERO;
-    let (signal_tx, signal_rx) = tokio::sync::oneshot::channel::<()>();
-    let (exit_tx, mut exit_rx) = tokio::sync::oneshot::channel::<()>();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel::<()>();
+    let (exited_tx, mut exited_rx) = tokio::sync::oneshot::channel::<()>();
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
             tokio_uring::start(async {
                 let listener = UnixListener::bind(&sock).unwrap();
-                signal_tx.send(()).unwrap();
+                started_tx.send(()).unwrap();
                 let worker = |conn: UnixStream| async move {
+                    let conn = &conn;
                     let mut wbuf = vec![0; bufsize];
                     loop {
                         let r;
-                        (r, wbuf) = read_i32(&conn, wbuf).await;
+                        (r, wbuf) = read_i32(conn, wbuf).await;
                         match r {
                             Ok(i) => {
                                 assert_eq!(i, PING);
-                                with!(wbuf = write_i32(&conn, wbuf, PONG).await).unwrap();
+                                with!(wbuf = write_i32(conn, wbuf, PONG).await).unwrap();
                                 wbuf.fill(BUFVAL);
                                 with!(wbuf = conn.write_all(wbuf).await).unwrap();
                             },
@@ -58,7 +59,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                 loop {
                     tokio::select! {
                         r = listener.accept() => { spawn_local(worker(r.unwrap())); },
-                        _ = &mut exit_rx =>  break,
+                        _ = &mut exited_rx =>  break,
                     }
                 }
             });
@@ -66,7 +67,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         // Client
         cx.spawn(|| {
             tokio_uring::start(async {
-                signal_rx.await.unwrap();
+                started_rx.await.unwrap();
                 let tasks = std::iter::repeat_with(|| {
                     let sock = sock.clone();
                     async move {
@@ -90,7 +91,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                     task.await.unwrap();
                 }
                 elapsed = now.elapsed();
-                exit_tx.send(()).unwrap();
+                exited_tx.send(()).unwrap();
             });
         });
     });

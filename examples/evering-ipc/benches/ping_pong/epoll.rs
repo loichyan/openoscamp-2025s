@@ -8,14 +8,14 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     let sock = Path::new("/dev/shm").join(make_shmid(id));
 
     let mut elapsed = Duration::ZERO;
-    let (signal_tx, signal_rx) = tokio::sync::oneshot::channel::<()>();
-    let (exit_tx, mut exit_rx) = tokio::sync::oneshot::channel::<()>();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel::<()>();
+    let (exited_tx, mut exited_rx) = tokio::sync::oneshot::channel::<()>();
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
             block_on(async {
                 let listener = UnixListener::bind(&sock).unwrap();
-                signal_tx.send(()).unwrap();
+                started_tx.send(()).unwrap();
                 let worker = |mut conn: UnixStream| async move {
                     let wbuf = vec![BUFVAL; bufsize];
                     loop {
@@ -39,7 +39,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                             let (conn, _) = r.unwrap();
                             spawn_local(worker(conn));
                         },
-                        _ = &mut exit_rx =>  break,
+                        _ = &mut exited_rx =>  break,
                     }
                 }
             });
@@ -47,7 +47,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         // Client
         cx.spawn(|| {
             block_on(async {
-                signal_rx.await.unwrap();
+                started_rx.await.unwrap();
                 let tasks = std::iter::repeat_with(|| {
                     let sock = sock.clone();
                     async move {
@@ -71,7 +71,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                     task.await.unwrap();
                 }
                 elapsed = now.elapsed();
-                exit_tx.send(()).unwrap();
+                exited_tx.send(()).unwrap();
             });
         });
     });

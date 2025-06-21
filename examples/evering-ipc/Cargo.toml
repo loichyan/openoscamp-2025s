@@ -30,6 +30,10 @@ features = ["fs", "mman"]
 [dev-dependencies]
 criterion = "0.6.0"
 
+[dev-dependencies.shmipc]
+git = "https://github.com/cloudwego/shmipc-rs"
+rev = "de966a6ca2d76d574b943f6fd4d3abfa6ff2df5f"
+
 [dev-dependencies.tokio]
 version = "1.45.1"
 features = ["io-util", "macros", "net", "rt", "sync"]
