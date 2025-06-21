@@ -1,0 +1,36 @@
+[package]
+name = "ipc-benchmark"
+publish = false
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytesize.workspace = true
+criterion = "0.6.0"
+evering.workspace = true
+evering-ipc = { path = "../evering-ipc" }
+fastrand.workspace = true
+
+[dependencies.nix]
+workspace = true
+features = ["fs", "mman"]
+
+[dependencies.shmipc]
+git = "https://github.com/cloudwego/shmipc-rs"
+rev = "de966a6ca2d76d574b943f6fd4d3abfa6ff2df5f"
+
+[dependencies.tokio]
+version = "1.45.1"
+features = ["io-util", "macros", "net", "rt", "sync"]
+
+[dependencies.tokio-uring]
+# See <https://github.com/tokio-rs/tokio-uring/pull/325>
+git = "https://github.com/decathorpe/tokio-uring"
+rev = "025682b030561149621ed22e2e5f62034e4be5ed"
+
+[[bench]]
+name = "ipc-benchmark"
+path = "src/bench.rs"
+harness = false

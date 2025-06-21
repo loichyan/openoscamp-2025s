@@ -14,13 +14,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[path = "ping_pong/epoll.rs"]
 mod epoll;
-#[path = "ping_pong/evering.rs"]
 mod evering;
-#[path = "ping_pong/io_uring.rs"]
 mod io_uring;
-#[path = "ping_pong/shmipc.rs"]
 mod shmipc;
 
 use std::path::Path;
@@ -69,11 +65,11 @@ fn groups(c: &mut Criterion) {
         ($($name:ident),* $(,)?) => ([$((stringify!($name), self::$name::bench as BenchFn),)*]);
     }
 
-    let mut g = c.benchmark_group("evering");
+    let mut g = c.benchmark_group("ipc_benchmark");
     for (i, bufsize) in BUFSIZES.iter().copied().enumerate() {
         let bsize = ByteSize::b(bufsize as u64).display().iec_short();
         for (name, f) in benches![evering, epoll, io_uring, shmipc] {
-            let id = format!("ping_pong_{:02}_{bsize:.0}_{name}", i + 1);
+            let id = format!("ipc_benchmark_{:02}_{bsize:.0}_{name}", i + 1);
             g.bench_function(&id, |b| {
                 b.iter_custom(|iters| f(&id, iters as usize, bufsize))
             });
@@ -81,5 +77,5 @@ fn groups(c: &mut Criterion) {
     }
 }
 
-criterion_group!(ping_pong, groups);
-criterion_main!(ping_pong);
+criterion_group!(ipc_benchmark, groups);
+criterion_main!(ipc_benchmark);

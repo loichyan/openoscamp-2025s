@@ -8,15 +8,15 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-local-executor.workspace = true
+bytesize.workspace = true
 evering.workspace = true
 evering-utils.workspace = true
 fastrand.workspace = true
+local-executor.workspace = true
 pin-project-lite.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
 rlsf = "0.2.1"
-bytesize = "2.0.1"
+tracing-subscriber.workspace = true
+tracing.workspace = true
 
 [dependencies.argh]
 version = "0.1.13"
@@ -24,25 +24,5 @@ default-features = false
 features = ["help"]
 
 [dependencies.nix]
-version = "0.30.1"
+workspace = true
 features = ["fs", "mman"]
-
-[dev-dependencies]
-criterion = "0.6.0"
-
-[dev-dependencies.shmipc]
-git = "https://github.com/cloudwego/shmipc-rs"
-rev = "de966a6ca2d76d574b943f6fd4d3abfa6ff2df5f"
-
-[dev-dependencies.tokio]
-version = "1.45.1"
-features = ["io-util", "macros", "net", "rt", "sync"]
-
-[dev-dependencies.tokio-uring]
-# See <https://github.com/tokio-rs/tokio-uring/pull/325>
-git = "https://github.com/decathorpe/tokio-uring"
-rev = "025682b030561149621ed22e2e5f62034e4be5ed"
-
-[[bench]]
-name = "ping_pong"
-harness = false
