@@ -22,7 +22,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         let mut config = ::shmipc::config::Config::new();
 
         config.mem_map_type = MemMapType::MemMapTypeMemFd;
-        config.share_memory_buffer_cap = SHMSIZE as u32;
+        config.share_memory_buffer_cap = shmsize(bufsize) as u32;
         config.share_memory_path_prefix = shmpath.clone();
         config.buffer_slice_sizes = vec![
             SizePercentPair {
@@ -54,25 +54,29 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
+            let resp = make_resp(bufsize);
             block_on(async {
                 let mut listener = Listener::new(sockaddr.clone(), sm_config.config().clone())
                     .await
                     .unwrap();
                 started_tx.send(()).unwrap();
-                let worker = |mut conn: Stream| async move {
-                    let conn = &mut conn;
-                    let wbuf = vec![BUFVAL; bufsize];
-                    loop {
-                        match read_i32(conn).await {
-                            Ok(i) => {
-                                assert_eq!(i, PING);
-                                conn.release_read_and_reuse();
-                                write_i32(conn, PONG).unwrap();
-                                write_all(conn, &wbuf).unwrap();
-                                must_flush(conn, false).await.unwrap();
-                            },
-                            Err(Error::StreamClosed | Error::EndOfStream) => break,
-                            Err(e) => panic!("{e}"),
+                let worker = |mut conn: Stream| {
+                    let resp = resp.clone();
+                    async move {
+                        let conn = &mut conn;
+                        loop {
+                            match read_i32(conn).await {
+                                Ok(ping) => {
+                                    assert_eq!(ping, PING);
+                                    conn.release_read_and_reuse();
+
+                                    write_i32(conn, PONG).unwrap();
+                                    write_all(conn, &resp).unwrap();
+                                    must_flush(conn, false).await.unwrap();
+                                },
+                                Err(Error::StreamClosed | Error::EndOfStream) => break,
+                                Err(e) => panic!("{e}"),
+                            }
                         }
                     }
                 };
@@ -105,9 +109,11 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                         for _ in 0..(iters / CONCURRENCY) {
                             write_i32(conn, PING).unwrap();
                             must_flush(conn, false).await.unwrap();
-                            assert_eq!(read_i32(conn).await.unwrap(), PONG);
-                            let rbuf = conn.read_bytes(bufsize).await.unwrap();
-                            assert!(rbuf.iter().all(|b| *b == BUFVAL));
+
+                            let pong = read_i32(conn).await.unwrap();
+                            assert_eq!(pong, PONG);
+                            let resp = conn.read_bytes(bufsize).await.unwrap();
+                            assert!(check_resp(bufsize, &resp));
                             conn.release_read_and_reuse();
                         }
                         conn.close().await.unwrap();

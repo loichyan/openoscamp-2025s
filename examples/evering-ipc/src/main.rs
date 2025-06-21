@@ -148,15 +148,15 @@ fn start_client(shm: &'static ShmHeader) -> bool {
                 let delay = fastrand::u64(50..500);
                 tracing::info!("requested ping({i}), delay={delay:?}ms");
 
-                let delay = fastrand::u64(0..500);
                 let buf = ShmBox::new_uninit_slice(fastrand::usize(8..=32));
-
                 let now = std::time::Instant::now();
-                let buf = op::ping(Duration::from_millis(delay), buf).await;
+                let (pong, buf) = op::ping(fastrand::i32(..), buf).await;
                 let elapsed = now.elapsed().as_millis();
 
                 let bstr = std::str::from_utf8(&buf).unwrap();
-                tracing::info!("responded pong({i}), elapsed={elapsed}ms, buf={bstr}");
+                tracing::info!(
+                    "responded pong({i}), elapsed={elapsed}ms, pong={pong:x}, buf={bstr}"
+                );
             })
             .map(RuntimeHandle::spawn)
             .take(fastrand::usize(32..=64))
@@ -187,15 +187,18 @@ fn start_server(shm: &'static ShmHeader) -> bool {
                     should_exit = true;
                     RqeData::Exited
                 },
-                SqeData::Ping { delay, buf } => {
-                    std::thread::sleep(delay);
+                SqeData::Ping { ping, buf } => {
+                    let delay = (ping as u64 % 450) + 50;
+                    std::thread::sleep(Duration::from_millis(delay));
                     unsafe {
                         let mut buf = buf.as_ptr();
                         for c in buf.as_mut().iter_mut() {
                             c.write(fastrand::alphanumeric() as u32 as u8);
                         }
                     }
-                    RqeData::Pong
+                    RqeData::Pong {
+                        pong: fastrand::i32(..),
+                    }
                 },
             };
             local_queue.push(Rqe { id, data });

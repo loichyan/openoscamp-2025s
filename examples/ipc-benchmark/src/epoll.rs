@@ -13,23 +13,27 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
+            let resp = make_resp(bufsize);
+
             block_on(async {
                 let listener = UnixListener::bind(&sock).unwrap();
                 started_tx.send(()).unwrap();
-                let worker = |mut conn: UnixStream| async move {
-                    let wbuf = vec![BUFVAL; bufsize];
-                    loop {
-                        match conn.read_i32().await {
-                            Ok(i) => {
-                                assert_eq!(i, PING);
-                                conn.write_i32(PONG).await.unwrap();
-                                conn.write_all(&wbuf).await.unwrap();
-                                conn.flush().await.unwrap();
-                            },
-                            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                                return;
-                            },
-                            Err(e) => panic!("{e}"),
+                let worker = |mut conn: UnixStream| {
+                    let resp = resp.clone();
+                    async move {
+                        loop {
+                            match conn.read_i32().await {
+                                Ok(ping) => {
+                                    assert_eq!(ping, PING);
+                                    conn.write_i32(PONG).await.unwrap();
+                                    conn.write_all(&resp).await.unwrap();
+                                    conn.flush().await.unwrap();
+                                },
+                                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                                    return;
+                                },
+                                Err(e) => panic!("{e}"),
+                            }
                         }
                     }
                 };
@@ -50,15 +54,17 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                 started_rx.await.unwrap();
                 let tasks = std::iter::repeat_with(|| {
                     let sock = sock.clone();
+                    let mut resp = vec![0; bufsize];
                     async move {
                         let mut conn = UnixStream::connect(sock).await.unwrap();
-                        let mut rbuf = vec![0; bufsize];
                         for _ in 0..(iters / CONCURRENCY) {
                             conn.write_i32(PING).await.unwrap();
                             conn.flush().await.unwrap();
-                            assert_eq!(conn.read_i32().await.unwrap(), PONG);
-                            conn.read_exact(&mut rbuf).await.unwrap();
-                            assert!(rbuf.iter().all(|b| *b == BUFVAL));
+
+                            let pong = conn.read_i32().await.unwrap();
+                            assert_eq!(pong, PONG);
+                            conn.read_exact(&mut resp).await.unwrap();
+                            assert!(check_resp(bufsize, &resp));
                         }
                     }
                 })

@@ -1,5 +1,4 @@
 use std::mem::MaybeUninit;
-use std::time::Duration;
 
 use evering::driver::OpId;
 use evering::op::{Cancellation, Completable};
@@ -23,7 +22,7 @@ pub struct Rqe {
 pub enum SqeData {
     Exit,
     Ping {
-        delay: Duration,
+        ping: i32,
         buf: ShmToken<[MaybeUninit<u8>]>,
     },
 }
@@ -31,31 +30,31 @@ pub enum SqeData {
 #[derive(Debug)]
 pub enum RqeData {
     Exited,
-    Pong,
+    Pong { pong: i32 },
 }
 
 struct Ping {
     buf: ShmBox<[MaybeUninit<u8>]>,
 }
 unsafe impl Completable for Ping {
-    type Output = ShmBox<[u8]>;
+    type Output = (i32, ShmBox<[u8]>);
     type Driver = RuntimeHandle;
     fn complete(self, _drv: &RuntimeHandle, payload: RqeData) -> Self::Output {
-        let RqeData::Pong = payload else {
+        let RqeData::Pong { pong } = payload else {
             unreachable!()
         };
-        unsafe { self.buf.assume_init() }
+        (pong, unsafe { self.buf.assume_init() })
     }
     fn cancel(self, _drv: &RuntimeHandle) -> Cancellation {
         Cancellation::recycle(self.buf)
     }
 }
 
-pub async fn ping(delay: Duration, buf: ShmBox<[MaybeUninit<u8>]>) -> ShmBox<[u8]> {
+pub async fn ping(ping: i32, buf: ShmBox<[MaybeUninit<u8>]>) -> (i32, ShmBox<[u8]>) {
     RuntimeHandle::submit(Ping { buf }, |id, p| Sqe {
         id,
         data: SqeData::Ping {
-            delay,
+            ping,
             buf: ShmBox::as_shm(&p.buf),
         },
     })

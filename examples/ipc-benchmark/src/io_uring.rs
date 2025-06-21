@@ -33,26 +33,32 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
+            static PONG_BYTES: &[u8] = PONG.to_be_bytes().as_slice();
+            let resp = make_resp(bufsize);
+
             tokio_uring::start(async {
                 let listener = UnixListener::bind(&sock).unwrap();
                 started_tx.send(()).unwrap();
-                let worker = |conn: UnixStream| async move {
-                    let conn = &conn;
-                    let mut wbuf = vec![0; bufsize];
-                    loop {
-                        let r;
-                        (r, wbuf) = read_i32(conn, wbuf).await;
-                        match r {
-                            Ok(i) => {
-                                assert_eq!(i, PING);
-                                with!(wbuf = write_i32(conn, wbuf, PONG).await).unwrap();
-                                wbuf.fill(BUFVAL);
-                                with!(wbuf = conn.write_all(wbuf).await).unwrap();
-                            },
-                            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                                return;
-                            },
-                            Err(e) => panic!("{e}"),
+                let worker = |conn: UnixStream| {
+                    // `pong` and `resp` will never be written actually, but we
+                    // need to transfer the ownship between this task and the
+                    // io_uring driver.
+                    let mut pong = PONG_BYTES;
+                    let mut resp = resp.clone();
+                    let mut ping = vec![0; 4];
+                    async move {
+                        loop {
+                            match with!(ping = read_i32(&conn, ping).await) {
+                                Ok(ping) => {
+                                    assert_eq!(ping, PING);
+                                    with!(pong = conn.write_all(pong).await).unwrap();
+                                    with!(resp = conn.write_all(resp).await).unwrap();
+                                },
+                                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                                    return;
+                                },
+                                Err(e) => panic!("{e}"),
+                            }
                         }
                     }
                 };
@@ -66,19 +72,23 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         });
         // Client
         cx.spawn(|| {
+            static PING_BYTES: &[u8] = PING.to_be_bytes().as_slice();
+
             tokio_uring::start(async {
                 started_rx.await.unwrap();
                 let tasks = std::iter::repeat_with(|| {
                     let sock = sock.clone();
+                    let mut ping = PING_BYTES;
+                    let mut resp = vec![0; bufsize];
                     async move {
                         let conn = UnixStream::connect(sock).await.unwrap();
-                        let mut rbuf = vec![0; bufsize];
                         for _ in 0..(iters / CONCURRENCY) {
-                            with!(rbuf = write_i32(&conn, rbuf, PING).await).unwrap();
-                            let i = with!(rbuf = read_i32(&conn, rbuf).await).unwrap();
-                            assert_eq!(i, PONG);
-                            with!(rbuf = read_exact(&conn, rbuf, bufsize).await).unwrap();
-                            assert!(rbuf.iter().all(|b| *b == BUFVAL));
+                            with!(ping = conn.write_all(ping).await).unwrap();
+
+                            let pong = with!(resp = read_i32(&conn, resp).await).unwrap();
+                            assert_eq!(pong, PONG);
+                            with!(resp = read_exact(&conn, resp, bufsize).await).unwrap();
+                            assert!(check_resp(bufsize, &resp));
                         }
                     }
                 })
@@ -121,11 +131,4 @@ async fn read_i32(conn: &UnixStream, mut buf: Vec<u8>) -> BufResult<i32, Vec<u8>
     tri!(buf = read_exact(conn, buf, 4).await);
     let i = i32::from_be_bytes(buf[..4].try_into().expect("buf too small"));
     (Ok(i), buf)
-}
-
-async fn write_i32(conn: &UnixStream, buf: Vec<u8>, i: i32) -> BufResult<(), Vec<u8>> {
-    let mut sbuf = buf.slice(..4);
-    sbuf.copy_from_slice(&i.to_be_bytes());
-    let (r, sbuf) = conn.write_all(sbuf).await;
-    (r, sbuf.into_inner())
 }

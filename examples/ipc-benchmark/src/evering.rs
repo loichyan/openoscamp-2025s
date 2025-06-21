@@ -1,5 +1,4 @@
 use std::ffi::CString;
-use std::hint::black_box;
 use std::mem::MaybeUninit;
 use std::os::fd::AsFd;
 use std::sync::Once;
@@ -17,19 +16,22 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         nix::sys::memfd::memfd_create(shmid.as_c_str(), nix::sys::memfd::MFdFlags::empty())
             .expect("failed to create shared memory");
     let shmfd = shmfd_owned.as_fd();
+    let shmsize = shmsize(bufsize);
 
     let mut elapsed = Duration::ZERO;
     let started = Once::new();
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
+            let resp = black_box(vec![MaybeUninit::new(BUFVAL); bufsize]);
+
             let (shm, mut rq);
             unsafe {
                 let mut h = UringBuilder::new();
                 h.size_a(CONCURRENCY.next_power_of_two());
                 h.size_b(CONCURRENCY.next_power_of_two());
                 let h = h.build_header();
-                shm = ShmHeader::create(shmfd, SHMSIZE, h).unwrap();
+                shm = ShmHeader::create(shmfd, shmsize, h).unwrap();
                 rq = ServerUring::from_raw(shm.as_ref().build_raw_uring());
                 evering_ipc::shm::init_server(shm.as_ref());
             }
@@ -55,10 +57,11 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                             .unwrap();
                             break 'outer;
                         },
-                        SqeData::Ping { delay: _, buf } => {
+                        SqeData::Ping { ping, buf } => {
+                            assert_eq!(ping, PING);
                             assert_eq!(buf.as_ptr().len(), bufsize);
-                            unsafe { buf.as_ptr().as_mut().fill(MaybeUninit::new(BUFVAL)) }
-                            RqeData::Pong
+                            unsafe { buf.as_ptr().as_mut().copy_from_slice(&resp) }
+                            RqeData::Pong { pong: PONG }
                         },
                     };
                     if let Err(p) = rq.send(Rqe { id, data }) {
@@ -69,14 +72,14 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
             }
 
             _ = rq.dispose_raw();
-            unsafe { ShmHeader::close(shm, SHMSIZE).unwrap() }
+            unsafe { ShmHeader::close(shm, shmsize).unwrap() }
         });
         // Client
         cx.spawn(|| {
             started.wait();
             let (shm, sq);
             unsafe {
-                shm = ShmHeader::open(shmfd, SHMSIZE).unwrap();
+                shm = ShmHeader::open(shmfd, shmsize).unwrap();
                 sq = ClientUring::from_raw(shm.as_ref().build_raw_uring());
                 evering_ipc::shm::init_client(shm.as_ref());
             }
@@ -86,8 +89,9 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                 let tasks = std::iter::repeat_with(|| async move {
                     let mut rbuf = ShmBox::new_uninit_slice(bufsize);
                     for _ in 0..(iters / CONCURRENCY) {
-                        let rbuf_init = evering_ipc::op::ping(Duration::ZERO, rbuf).await;
-                        assert!(rbuf_init.iter().all(|b| *b == BUFVAL));
+                        let (pong, rbuf_init) = evering_ipc::op::ping(PING, rbuf).await;
+                        assert_eq!(pong, PONG);
+                        assert!(check_resp(bufsize, &rbuf_init));
                         rbuf = rbuf_init.into_uninit();
                     }
                 })
@@ -104,7 +108,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
             }));
 
             _ = rx.into_uring().dispose_raw();
-            unsafe { ShmHeader::close(shm, SHMSIZE).unwrap() }
+            unsafe { ShmHeader::close(shm, shmsize).unwrap() }
         });
     });
 

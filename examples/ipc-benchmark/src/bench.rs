@@ -19,9 +19,11 @@ mod evering;
 mod io_uring;
 mod shmipc;
 
+use std::hint::black_box;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use bytes::Bytes;
 use bytesize::ByteSize;
 use criterion::{Criterion, criterion_group, criterion_main};
 
@@ -37,15 +39,25 @@ const BUFSIZES: &[usize] = &[
     256 << 10,
     512 << 10,
     1 << 20,
+    4 << 20,
 ];
 const CONCURRENCY: usize = 200;
-const SHMSIZE: usize = 256 << 20;
 
+// Fixed constants
 const PING: i32 = 1;
 const PONG: i32 = 2;
-const BUFVAL: u8 = b'X';
+// Black boxed to mock runtime values
+const BUFVAL: u8 = black_box(b'X');
 
 type BenchFn = fn(&str, usize, usize) -> Duration;
+
+const fn shmsize(bufsize: usize) -> usize {
+    if bufsize < 4 << 20 {
+        256 << 20
+    } else {
+        1 << 30
+    }
+}
 
 fn block_on<T>(fut: impl Future<Output = T>) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -61,16 +73,25 @@ fn make_shmid(pref: &str) -> String {
         .collect()
 }
 
+fn check_resp(bufsize: usize, resp: &[u8]) -> bool {
+    assert_eq!(resp.len(), bufsize);
+    resp.iter().copied().map(black_box).all(|b| b == BUFVAL)
+}
+
+/// Returns arbitrary response data.
+fn make_resp(bufsize: usize) -> Bytes {
+    black_box(Bytes::from(vec![BUFVAL; bufsize]))
+}
+
 fn groups(c: &mut Criterion) {
     macro_rules! benches {
         ($($name:ident),* $(,)?) => ([$((stringify!($name), self::$name::bench as BenchFn),)*]);
     }
 
-    // TODO: black_box assertions
     let mut g = c.benchmark_group("ipc_benchmark");
     for (i, bufsize) in BUFSIZES.iter().copied().enumerate() {
         let bsize = ByteSize::b(bufsize as u64).display().iec_short();
-        for (name, f) in benches![evering, epoll, io_uring, shmipc] {
+        for (name, f) in benches![epoll, evering, io_uring, shmipc,] {
             let id = format!("ipc_benchmark_{i:02}_{bsize:.0}_{name}");
             g.bench_function(&id, |b| {
                 b.iter_custom(|iters| f(&id, iters as usize, bufsize))
@@ -79,5 +100,9 @@ fn groups(c: &mut Criterion) {
     }
 }
 
-criterion_group!(ipc_benchmark, groups);
+criterion_group!(
+    name = ipc_benchmark;
+    config = Criterion::default().sample_size(50).measurement_time(Duration::from_secs(30));
+    targets = groups
+);
 criterion_main!(ipc_benchmark);

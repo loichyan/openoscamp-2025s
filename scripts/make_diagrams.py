@@ -19,6 +19,7 @@ class Args:
     bench: str
     outdir: str
     format: str
+    estimate: str
     show_only: bool
 
     @staticmethod
@@ -47,6 +48,12 @@ class Args:
             metavar="<str>",
             help="format of output diagrams, can be jepg, svg, png, ...",
             default="svg",
+        )
+        parser.add_argument(
+            "--estimate",
+            metavar="<str>",
+            help="which estimate to use",
+            default="slope",
         )
         parser.add_argument(
             "--show-only",
@@ -82,7 +89,6 @@ class Report:
 
 args: Args
 name_pattern: re.Pattern[str]
-estimate_key = "slope"
 
 
 def parse_reports(dir: str) -> list[Report]:
@@ -96,6 +102,13 @@ def parse_reports(dir: str) -> list[Report]:
 
 
 def make_figure(df: pd.DataFrame, title: str, unit: str = "ns"):
+    match unit:
+        case "ns":
+            pass
+        case "us":
+            df = df / 1000
+        case _:
+            raise ValueError(f"unsupported unit '{unit}'")
     df.plot(figsize=(10, 5))
 
     ax = plt.gca()
@@ -119,7 +132,7 @@ def make_diagram(reports: list[Report]):
 
     for g, group in groups.items():
         group.sort(key=lambda r: r.idx)
-        df[g] = [int(r.estimates[estimate_key]["point_estimate"]) for r in group]
+        df[g] = [int(r.estimates[args.estimate]["point_estimate"]) for r in group]
 
     if args.show_only:
         print(df)
@@ -129,9 +142,9 @@ def make_diagram(reports: list[Report]):
     mid_r = len(first) - mid_l
 
     make_figure(df[0:5], f"{args.bench}_first_5")
-    make_figure(df[mid_l:mid_r], f"{args.bench}_mid_5")
-    make_figure(df[-5:] / 1000, f"{args.bench}_last_5", unit="us")
-    make_figure(df[:] / 1000, f"{args.bench}_all", unit="us")
+    make_figure(df[mid_l:mid_r], f"{args.bench}_mid_5", unit="us")
+    make_figure(df[-5:], f"{args.bench}_last_5", unit="us")
+    make_figure(df[:], f"{args.bench}_all", unit="us")
 
 
 def main():
