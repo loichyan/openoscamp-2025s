@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["evering_ipc",[["impl&lt;T: ?<a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html\" title=\"trait core::marker::Sized\">Sized</a>&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html\" title=\"trait core::ops::deref::Deref\">Deref</a> for <a class=\"struct\" href=\"evering_ipc/shm/struct.ShmBox.html\" title=\"struct evering_ipc::shm::ShmBox\">ShmBox</a>&lt;T&gt;"]]],["evering_utils",[["impl&lt;Rt: <a class=\"trait\" href=\"evering_utils/runtime/trait.RuntimeHandle.html\" title=\"trait evering_utils::runtime::RuntimeHandle\">RuntimeHandle</a>&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html\" title=\"trait core::ops::deref::Deref\">Deref</a> for <a class=\"struct\" href=\"evering_utils/runtime/struct.DriverRef.html\" title=\"struct evering_utils::runtime::DriverRef\">DriverRef</a>&lt;Rt&gt;"],["impl&lt;Rt: <a class=\"trait\" href=\"evering_utils/runtime/trait.RuntimeHandle.html\" title=\"trait evering_utils::runtime::RuntimeHandle\">RuntimeHandle</a>&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html\" title=\"trait core::ops::deref::Deref\">Deref</a> for <a class=\"struct\" href=\"evering_utils/runtime/struct.ExecutorRef.html\" title=\"struct evering_utils::runtime::ExecutorRef\">ExecutorRef</a>&lt;Rt&gt;"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[448,952]}

@@ -1,0 +1,3 @@
+var srcIndex = new Map(JSON.parse('[["evering",["",[],["driver.rs","lib.rs","op.rs","resource.rs","uring.rs"]]],["evering_ipc",["",[["shm",[],["boxed.rs"]]],["lib.rs","op.rs","runtime.rs","shm.rs"]]],["evering_threaded",["",[],["main.rs","op.rs","runtime.rs"]]],["evering_utils",["",[],["lib.rs","runtime.rs"]]],["ipc_benchmark",["",[],["lib.rs"]]],["local_executor",["",[],["executor.rs","lib.rs","task.rs"]]]]'));
+createSrcSidebar();
+//{"start":36,"fragment_lengths":[75,88,62,50,37,62]}
