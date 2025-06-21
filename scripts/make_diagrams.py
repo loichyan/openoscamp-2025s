@@ -19,6 +19,7 @@ class Args:
     bench: str
     outdir: str
     format: str
+    show_only: bool
 
     @staticmethod
     def parse() -> "Args":
@@ -46,6 +47,11 @@ class Args:
             metavar="<str>",
             help="format of output diagrams, can be jepg, svg, png, ...",
             default="svg",
+        )
+        parser.add_argument(
+            "--show-only",
+            action="store_true",
+            help="does nothing but shows the estimates",
         )
         return Args(**vars(parser.parse_args()))
 
@@ -113,7 +119,11 @@ def make_diagram(reports: list[Report]):
 
     for g, group in groups.items():
         group.sort(key=lambda r: r.idx)
-        df[g] = [r.estimates[estimate_key]["point_estimate"] for r in group]
+        df[g] = [int(r.estimates[estimate_key]["point_estimate"]) for r in group]
+
+    if args.show_only:
+        print(df)
+        return
 
     mid_l = int((len(first) - 5) / 2)
     mid_r = len(first) - mid_l

@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::hint::black_box;
 use std::mem::MaybeUninit;
 use std::os::fd::AsFd;
 use std::sync::Once;

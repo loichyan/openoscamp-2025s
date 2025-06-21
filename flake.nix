@@ -47,6 +47,7 @@
         devShells.default = mkShellNoCC {
           packages = with pkgs; [
             rust-dev-with-rust-analyzer
+            cargo-flamegraph
             gnuplot
             python312
             uv

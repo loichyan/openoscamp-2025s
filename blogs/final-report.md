@@ -4,7 +4,7 @@ marp: true
 theme: gaia
 style: |
   :root {
-    font-size: 2.5em;
+    font-size: 2em;
   }
   section footer {
     text-align: right;
@@ -13,7 +13,7 @@ style: |
     font-size: 60%;
     padding: 0 0;
   }
-  blockquote::after, 
+  blockquote::after,
   blockquote::before {
       content: '';
   }
@@ -31,7 +31,7 @@ _footer: "2025/06/21"
 ---
 
 <!--
-footer: "evering 异步通信框架 [1/2]"
+footer: "evering 异步通信框架 [1/3]"
 -->
 
 ## 异步通信框架: evering
@@ -79,7 +79,7 @@ Work-stealing:
 ---
 
 <!--
-footer: "IPC 性能测试 [2/2]"
+footer: "IPC 性能测试 [2/3]"
 -->
 
 ## ipc-benchmark
@@ -97,11 +97,10 @@ footer: "IPC 性能测试 [2/2]"
 > 4. [Tokio](https://tokio.rs/) 目前的 I/O 是基于 epoll(7) 的
 > 5. io_uring 使用 [tokio-uring](https://github.com/tokio-rs/tokio-uring) 的实现
 
-
 ---
 
 <!--
-_footer: "IPC 性能测试 [4B, 1M] [2/2]"
+_footer: "IPC 性能测试 [4B, 1M] [2/3]"
 -->
 
 ![h:17.5em](./benches/ipc_benchmark_all.svg)
@@ -109,7 +108,7 @@ _footer: "IPC 性能测试 [4B, 1M] [2/2]"
 ---
 
 <!--
-_footer: "IPC 性能测试 [4B, 4K] [2/2]"
+_footer: "IPC 性能测试 [4B, 4K] [2/3]"
 -->
 
 ![h:17.5em](./benches/ipc_benchmark_first_5.svg)
@@ -117,7 +116,7 @@ _footer: "IPC 性能测试 [4B, 4K] [2/2]"
 ---
 
 <!--
-_footer: "IPC 性能测试 [1K, 64K] [2/2]"
+_footer: "IPC 性能测试 [1K, 64K] [2/3]"
 -->
 
 ![h:17.5em](./benches/ipc_benchmark_mid_5.svg)
@@ -125,7 +124,26 @@ _footer: "IPC 性能测试 [1K, 64K] [2/2]"
 ---
 
 <!--
-_footer: "IPC 性能测试 [32K, 1M] [2/2]"
+_footer: "IPC 性能测试 [32K, 1M] [2/3]"
 -->
 
 ![h:17.5em](./benches/ipc_benchmark_last_5.svg)
+
+---
+
+<!--
+footer: "未完成的任务 [3/3]"
+-->
+
+## 未完成的任务
+
+- 实现 MPSC 队列
+  - 客户端支持多线程请求
+  - 兼容 work-stealing 运行时
+- 基于 evering 实现系统调用
+  - 处理页表隔离问题
+  - 处理用户进程生命周期问题
+- 实现内核任务/用户任务混合调度
+  - 实现用户线程和协程（Future）的转换
+  - 内核调度器支持协程（embassy-preempt）
+
