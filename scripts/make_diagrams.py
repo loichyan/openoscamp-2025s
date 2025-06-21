@@ -90,7 +90,7 @@ def parse_reports(dir: str) -> list[Report]:
 
 
 def make_figure(df: pd.DataFrame, title: str, unit: str = "ns"):
-    df.plot()
+    df.plot(figsize=(10, 5))
 
     ax = plt.gca()
     ax.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(20))
@@ -115,7 +115,11 @@ def make_diagram(reports: list[Report]):
         group.sort(key=lambda r: r.idx)
         df[g] = [r.estimates[estimate_key]["point_estimate"] for r in group]
 
+    mid_l = int((len(first) - 5) / 2)
+    mid_r = len(first) - mid_l
+
     make_figure(df[0:5], f"{args.bench}_first_5")
+    make_figure(df[mid_l:mid_r], f"{args.bench}_mid_5")
     make_figure(df[-5:] / 1000, f"{args.bench}_last_5", unit="us")
     make_figure(df[:] / 1000, f"{args.bench}_all", unit="us")
 
