@@ -20,29 +20,29 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     let sockaddr = SocketAddr::from_pathname(&sockpath).unwrap();
     let sm_config = {
         let mut config = ::shmipc::config::Config::new();
-        config.connection_write_timeout = std::time::Duration::from_secs(1);
-
-        config.queue_cap = 65536;
-        config.queue_path = queuepath.clone();
 
         config.mem_map_type = MemMapType::MemMapTypeMemFd;
         config.share_memory_buffer_cap = SHMSIZE as u32;
         config.share_memory_path_prefix = shmpath.clone();
-
         config.buffer_slice_sizes = vec![
             SizePercentPair {
-                size: bufsize as u32 + 256,
+                size: bufsize as u32 + 1024,
                 percent: 70,
             },
             SizePercentPair {
-                size: (16 << 10) + 256,
+                size: (16 << 10) + 1024,
                 percent: 20,
             },
             SizePercentPair {
-                size: (64 << 10) + 256,
+                size: (64 << 10) + 1024,
                 percent: 10,
             },
         ];
+
+        config.queue_cap = 65536;
+        config.queue_path = queuepath.clone();
+        config.connection_write_timeout = std::time::Duration::from_secs(1);
+
         SessionManagerConfig::new()
             .with_config(config)
             .with_session_num(1)
@@ -65,8 +65,8 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                     loop {
                         match read_i32(conn).await {
                             Ok(i) => {
-                                conn.release_read_and_reuse();
                                 assert_eq!(i, PING);
+                                conn.release_read_and_reuse();
                                 write_i32(conn, PONG).unwrap();
                                 write_all(conn, &wbuf).unwrap();
                                 must_flush(conn, false).await.unwrap();
@@ -110,6 +110,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                             assert!(rbuf.iter().all(|b| *b == BUFVAL));
                             conn.release_read_and_reuse();
                         }
+                        conn.close().await.unwrap();
                     }
                 })
                 .map(spawn_local)

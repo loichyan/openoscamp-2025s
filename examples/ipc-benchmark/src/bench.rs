@@ -26,6 +26,7 @@ use bytesize::ByteSize;
 use criterion::{Criterion, criterion_group, criterion_main};
 
 const BUFSIZES: &[usize] = &[
+    4,
     64,
     512,
     1024,
@@ -38,7 +39,7 @@ const BUFSIZES: &[usize] = &[
     1 << 20,
 ];
 const CONCURRENCY: usize = 200;
-const SHMSIZE: usize = 1 << 30;
+const SHMSIZE: usize = 256 << 20;
 
 const PING: i32 = 1;
 const PONG: i32 = 2;
@@ -69,7 +70,7 @@ fn groups(c: &mut Criterion) {
     for (i, bufsize) in BUFSIZES.iter().copied().enumerate() {
         let bsize = ByteSize::b(bufsize as u64).display().iec_short();
         for (name, f) in benches![evering, epoll, io_uring, shmipc] {
-            let id = format!("ipc_benchmark_{:02}_{bsize:.0}_{name}", i + 1);
+            let id = format!("ipc_benchmark_{i:02}_{bsize:.0}_{name}");
             g.bench_function(&id, |b| {
                 b.iter_custom(|iters| f(&id, iters as usize, bufsize))
             });
