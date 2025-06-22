@@ -10,9 +10,10 @@ edition.workspace = true
 bytes = "1.10.1"
 bytesize.workspace = true
 criterion = "0.6.0"
-evering.workspace = true
 evering-ipc = { path = "../evering-ipc" }
+evering.workspace = true
 fastrand.workspace = true
+monoio = { version = "0.2.4", features = ["sync"] }
 
 [dependencies.nix]
 workspace = true

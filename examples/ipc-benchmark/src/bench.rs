@@ -14,9 +14,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[macro_use]
+mod utils;
 mod epoll;
 mod evering;
 mod io_uring;
+mod monoio;
 mod shmipc;
 
 use std::hint::black_box;
@@ -96,7 +99,7 @@ fn groups(c: &mut Criterion) {
     let mut g = c.benchmark_group("ipc_benchmark");
     for (i, bufsize) in BUFSIZES.iter().copied().enumerate() {
         let bsize = ByteSize::b(bufsize as u64).display().iec_short();
-        for (name, f) in benches![epoll, evering, io_uring, shmipc,] {
+        for (name, f) in benches![epoll, evering, io_uring, shmipc, monoio] {
             let id = format!("ipc_benchmark_{i:02}_{bsize:.0}_{name}");
             g.bench_function(&id, |b| {
                 b.iter_custom(|iters| f(&id, iters as usize, bufsize))
