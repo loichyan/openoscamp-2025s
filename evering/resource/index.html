@@ -1,0 +1,170 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="此模块用于管理共享的内存资源．"><title>evering::resource - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="evering" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0-nightly (50aa04180 2025-05-08)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../evering/index.html">evering</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module resource</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#资源" title="资源">资源</a></li><li><a href="#基于所有权借用的模型" title="基于所有权借用的模型">基于所有权借用的模型</a></li><li><a href="#基于所有权转移的模型" title="基于所有权转移的模型">基于所有权转移的模型</a></li></ul><h3><a href="#traits">Module Items</a></h3><ul class="block"><li><a href="#traits" title="Traits">Traits</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate evering</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">evering</a></div><h1>Module <span>resource</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/evering/resource.rs.html#1-25">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>此模块用于管理共享的内存资源．</p>
+<p>请求方通过指针将资源提交给响应方可以达到 zero-copy 的高效数据传递．但在异步上下文中，提前终止一个 <a href="https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html" title="trait core::future::future::Future"><code>Future</code></a> 可能导致意外访问过期资源，如下所示，</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">fn </span>read_it(path: <span class="kw-2">&amp;</span>str) {
+    <span class="kw">let </span><span class="kw-2">mut </span>buf = [<span class="number">0</span>; <span class="number">32</span>];
+    <span class="kw">let </span><span class="kw-2">mut </span>fut = request_read(path, <span class="kw-2">&amp;mut </span>buf);
+    <span class="kw">if </span>poll(<span class="kw-2">&amp;mut </span>fut).is_ready() {
+        <span class="macro">println!</span>(<span class="string">"read: {:?}"</span>, buf);
+    } <span class="kw">else </span>{
+        cancel(fut);
+        <span class="comment">//     ^ 尽管我们在此处取消了请求，这并不意味着响应方立即就能停止对该请求的处理
+    </span>}
+    <span class="comment">// &lt;- 当前函数返回，也就意味着 buf 变成了无效的内存，但响应方此后仍可能对它进行写入
+</span>}</code></pre></div>
+<p>为应对此问题，evering 提供了灵活的资源管理机制．</p>
+<h3 id="资源"><a class="doc-anchor" href="#资源">§</a>资源</h3>
+<p><a href="trait.Resource.html" title="trait evering::resource::Resource"><code>Resource</code></a> 和 <a href="trait.ResourceMut.html" title="trait evering::resource::ResourceMut"><code>ResourceMut</code></a> 分别定义了只读与可写的资源，资源通常是被分配在内存堆上的数据．二者都要求实现者返回稳定的指针，即不随资源所有权的转移而变化的指针，例如 <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec"><code>Vec</code></a> 和 <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String"><code>String</code></a>．</p>
+<h3 id="基于所有权借用的模型"><a class="doc-anchor" href="#基于所有权借用的模型">§</a>基于所有权借用的模型</h3>
+<p><strong>定义</strong>：</p>
+<ol>
+<li>资源的所有权总是归请求方．</li>
+<li>资源被提交给响应方时，所有权通过连接被临时借出．</li>
+<li>对于只读资源，借用是共享的．</li>
+<li>对于可变资源，借用是独占的．</li>
+<li>当资源对应的操作完成时，归还借用．</li>
+<li>当系统中不存在借用时，请求方可以选择回收资源．</li>
+</ol>
+<p>此模型类比于 Rust 中的引用 <code>&amp;T</code> 和可变引用 <code>&amp;mut T</code> 的概念．在 evering 中，可以通过 <a href="../op/trait.Completable.html#tymethod.cancel" title="method evering::op::Completable::cancel"><code>Completable::cancel</code></a> 来定义需要回收的资源．在一个操作的生命周期结束时，evering 会自动回收其占用的资源．</p>
+<p>以下是一个简单的示例，</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct </span>Request {
+    resource: Box&lt;<span class="kw">dyn </span>Any&gt;,
+    <span class="comment">// ... 一个操作可能占用多种资源
+</span>}
+<span class="kw">struct </span>Response {
+    payload: Box&lt;<span class="kw">dyn </span>Any&gt;,
+}
+<span class="kw">unsafe impl </span>Completable <span class="kw">for </span>Request {
+    <span class="kw">type </span>Output = Box&lt;<span class="kw">dyn </span>Any&gt;;
+    <span class="kw">type </span>Driver = DriverHandle;
+    <span class="kw">fn </span>complete(<span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>::Driver, payload: Box&lt;<span class="kw">dyn </span>Any&gt;) -&gt; Box&lt;<span class="kw">dyn </span>Any&gt; {
+        payload
+    }
+    <span class="kw">fn </span>cancel(<span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>::Driver) -&gt; Cancellation {
+        Cancellation::recycle(<span class="self">self</span>.resource)
+        <span class="comment">//                    ^ 一般来说，所有按指针传递的资源都需要回收
+    </span>}
+}
+
+<span class="kw">let </span>resource = make_resource();
+send_request(<span class="kw-2">&amp;</span>raw <span class="kw">const </span><span class="kw-2">*</span>resource); <span class="comment">// &lt;- 将该请求发送给响应端
+
+</span><span class="kw">let </span>id = drv.submit();
+<span class="kw">let </span>op = make_op(id, Request { resource });
+spawn_task(op); <span class="comment">// &lt;- 后台轮询 Op，继续处理其它工作
+
+// ...
+
+</span><span class="kw">let </span>data = recv_response(); <span class="comment">// &lt;-直到接收响应，随后完成该操作
+</span>drv.complete(id, data.payload).ok();
+<span class="comment">//  ^ 被占用的资源已通过 Cancellation 自动回收，故此处可以忽略返回的错误</span></code></pre></div>
+<p><strong>优点</strong>:</p>
+<ol>
+<li><a href="../op/struct.Cancellation.html" title="struct evering::op::Cancellation"><code>Cancellation</code></a> 可以支持任意类型的资源．</li>
+<li>资源管理完全由请求方控制，因此适用于各种场景．</li>
+</ol>
+<p><strong>缺点</strong>:</p>
+<ol>
+<li><a href="../op/struct.Cancellation.html" title="struct evering::op::Cancellation"><code>Cancellation</code></a> 的底层实现依赖于动态派发和内存分配，因此会引入额外的开销．不过，由于实际场景中，取消操作是一个概率相对较小的事件，所以此开销几乎可以忽略．</li>
+<li>请求方必须确保全部已提交的资源在取消时被回收掉．不过，比起下文所述模型，这相对不容易出错．</li>
+</ol>
+<p>此外，在实现此模型时，evering 参考了 <a href="https://github.com/tokio-rs/tokio-uring"><code>tokio-uring</code></a> 和 <a href="https://github.com/ringbahn/ringbahn"><code>ringbahn</code></a> 的相关设计．</p>
+<h3 id="基于所有权转移的模型"><a class="doc-anchor" href="#基于所有权转移的模型">§</a>基于所有权转移的模型</h3>
+<p><strong>定义</strong>:</p>
+<ol>
+<li>资源的所有权归属使用方．</li>
+<li>资源的所有权通过连接在通信双方之间转移．</li>
+<li>一方确认资源不需要再被转移时，它可以选择回收资源．</li>
+</ol>
+<p>此模型类比于 Rust 中的移动 <code>move</code> 语义．evering 并没有直接实现此模型，相反，这种机制依赖与通信双方的配合，如下所示，</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct </span>Request {
+    resource: <span class="kw-2">*mut </span><span class="kw">dyn </span>Any,
+    <span class="comment">//        ^ 请求方不应独占资源所有权
+</span>}
+<span class="kw">struct </span>Response {
+    resource: <span class="kw-2">*mut </span><span class="kw">dyn </span>Any, <span class="comment">// &lt;- 写入资源后，响应方需要返还所有权
+</span>}
+<span class="kw">unsafe impl </span>Completable <span class="kw">for </span>Request {
+    <span class="kw">type </span>Output = ();
+    <span class="kw">type </span>Driver = DriverHandle;
+    <span class="kw">fn </span>complete(<span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>::Driver, <span class="kw">_</span>: ()) {
+        <span class="comment">// SAFETY:
+        // 此时系统中不再有对该资源的访问，
+        // 1. 所有权已由响应方转移给我们．
+        // 2. 它对应的 Op 已完成．
+        // 因此可以安全的 drop 它．
+        </span><span class="kw">unsafe </span>{ <span class="self">self</span>.resource.drop_in_place() }
+    }
+    <span class="kw">fn </span>cancel(<span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>::Driver) -&gt; Cancellation {
+        Cancellation::noop()
+        <span class="comment">//            ^ 这里不需要回收任何资源
+    </span>}
+}
+
+<span class="kw">let </span>resource = make_resource();
+send_request(resource); <span class="comment">// &lt;- 响应方会得到该资源的所有权，并对其进行更新
+
+</span><span class="kw">let </span>id = drv.submit();
+<span class="kw">let </span>op = make_op(id, Request { resource });
+spawn_task(op); <span class="comment">// &lt;- 后台轮询 Op，继续处理其它工作
+
+// ...
+
+</span><span class="kw">let </span>data = recv_response(); <span class="comment">// &lt;- 接收响应随后完成该操作
+</span><span class="kw">if </span>drv.complete(id, ()).is_err() {
+    <span class="comment">// SAFETY:
+    // 和上述类似，由于该资源对应的 Op 已被取消，系统中不再有对它的访问．
+    </span><span class="kw">unsafe </span>{ data.resource.drop_in_place() }
+}</code></pre></div>
+<p><strong>优点</strong>:</p>
+<ol>
+<li>避免了引入 <a href="../op/struct.Cancellation.html" title="struct evering::op::Cancellation"><code>Cancellation</code></a> 导致的额外开销．</li>
+<li>资源所有权的归属配合 Rust 的 <code>move</code> 语义更符合直觉．</li>
+</ol>
+<p><strong>缺点</strong>:</p>
+<ol>
+<li>通信双方需要提前协商资源所有权的归属．</li>
+<li>通信双方必须谨慎的、手动的控制资源的释放．</li>
+</ol>
+<p>此外，我们也可以利用 <a href="../driver/struct.Driver.html" title="struct evering::driver::Driver"><code>Driver</code></a> 提供的 extension 机制来克服 <em>(1)</em> 所述的缺点，如下所示，</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct </span>Request {
+    <span class="comment">// resource: *mut dyn Any,
+</span>}
+<span class="kw">struct </span>Response {
+    <span class="comment">// resource: *mut dyn Any,
+</span>}
+<span class="kw">unsafe impl </span>Completable <span class="kw">for </span>Request {
+    <span class="kw">type </span>Output = ();
+    <span class="kw">type </span>Driver = DriverHandle;
+    <span class="kw">fn </span>complete(<span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>::Driver, <span class="kw">_</span>: ()) {
+        <span class="macro">unreachable!</span>() <span class="comment">// &lt;- 此函数不会被调用，如果实现了 complete_ext
+    </span>}
+    <span class="kw">fn </span>complete_ext(<span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>::Driver, <span class="kw">_</span>: (), resource: <span class="kw-2">*mut </span><span class="kw">dyn </span>Any) {
+        <span class="comment">// SAFETY: 同上所述
+        </span><span class="kw">unsafe </span>{ resource.drop_in_place() }
+    }
+    <span class="kw">fn </span>cancel(<span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>::Driver) -&gt; Cancellation {
+        Cancellation::noop()
+    }
+}
+
+<span class="kw">let </span>resource = make_resource();
+send_request(resource);
+
+<span class="kw">let </span>id = drv.submit_ext(resource);
+<span class="comment">//                      ^ 将资源作为 extension 存放在 Driver 中
+</span><span class="kw">let </span>op = make_op(id, Request {}); <span class="comment">// &lt;- 不再需要储存资源指针
+</span>spawn_task(op);
+
+<span class="comment">// ...
+
+</span><span class="kw">let </span>data = recv_response();
+<span class="kw">if let </span><span class="prelude-val">Err</span>((<span class="kw">_</span>, resource)) = drv.complete_ext(id, ()) {
+    <span class="comment">//         ^ Driver 将一直保存该资源，直到对应操作的生命周期结束
+    // SAFETY: 同上所述
+    </span><span class="kw">unsafe </span>{ resource.drop_in_place() }
+}</code></pre></div>
+</div></details><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.Resource.html" title="trait evering::resource::Resource">Resource</a></dt><dt><a class="trait" href="trait.ResourceMut.html" title="trait evering::resource::ResourceMut">Resource<wbr>Mut</a></dt></dl></section></div></main></body></html>

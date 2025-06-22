@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["evering",[["impl&lt;T: <a class=\"trait\" href=\"evering/op/trait.Completable.html\" title=\"trait evering::op::Completable\">Completable</a>&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html\" title=\"trait core::future::future::Future\">Future</a> for <a class=\"struct\" href=\"evering/op/struct.Op.html\" title=\"struct evering::op::Op\">Op</a>&lt;T&gt;"]]],["evering_utils",[["impl&lt;'a, P, U, C, Fut&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html\" title=\"trait core::future::future::Future\">Future</a> for <a class=\"struct\" href=\"evering_utils/runtime/struct.RunOn.html\" title=\"struct evering_utils::runtime::RunOn\">RunOn</a>&lt;'a, P, U, C, Fut&gt;<div class=\"where\">where\n    U: Uring,\n    C: <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html\" title=\"trait core::ops::function::FnMut\">FnMut</a>(U::B),\n    Fut: <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html\" title=\"trait core::future::future::Future\">Future</a>,</div>"]]],["local_executor",[["impl&lt;T: 'static&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html\" title=\"trait core::future::future::Future\">Future</a> for <a class=\"struct\" href=\"local_executor/struct.Task.html\" title=\"struct local_executor::Task\">Task</a>&lt;T&gt;"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[414,740,324]}

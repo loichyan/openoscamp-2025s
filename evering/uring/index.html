@@ -1,0 +1,85 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="此模块提供了用于建立通信连接的数据结构．"><title>evering::uring - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="evering" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0-nightly (50aa04180 2025-05-08)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../evering/index.html">evering</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module uring</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#非对等通信" title="非对等通信">非对等通信</a></li><li><a href="#对等通信" title="对等通信">对等通信</a></li><li><a href="#内存共享" title="内存共享">内存共享</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate evering</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">evering</a></div><h1>Module <span>uring</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/evering/uring.rs.html#1-689">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>此模块提供了用于建立通信连接的数据结构．</p>
+<p><a href="trait.Uring.html" title="trait evering::uring::Uring"><code>Uring</code></a> 定义了用于发送和接收消息的端口，而 <a href="struct.Builder.html" title="struct evering::uring::Builder"><code>Builder</code></a> 则用于构造一个通信连接的两端．<a href="struct.UringA.html" title="struct evering::uring::UringA"><code>UringA</code></a> 和 <a href="struct.UringB.html" title="struct evering::uring::UringB"><code>UringB</code></a> 是成对的两个通信端口，二者在连接中的地位是对等的．</p>
+<h3 id="非对等通信"><a class="doc-anchor" href="#非对等通信">§</a>非对等通信</h3>
+<p><a href="type.Sender.html" title="type evering::uring::Sender"><code>Sender</code></a> 和 <a href="type.Receiver.html" title="type evering::uring::Receiver"><code>Receiver</code></a> 分别是 A、B 两个端口的别名，用于在语义上区分在通信中的两个不同角色．以下演示了如何建立非对等通信连接，</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>items = <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>];
+<span class="comment">// 初始化发送端 tx 和接收端 rx
+</span><span class="kw">let </span>(<span class="kw-2">mut </span>tx, <span class="kw-2">mut </span>rx) = Builder::&lt;i32, i32&gt;::new().build();
+std::thread::scope(|cx| {
+    cx.spawn(|| {
+        <span class="comment">// 将请求批量发送至接收端
+        </span>tx.send_bulk(items.iter().copied());
+        <span class="kw">let </span><span class="kw-2">mut </span>r = <span class="macro">vec!</span>[];
+        <span class="comment">// 接收并处理响应结果
+        </span><span class="kw">while </span>r.len() != items.len() {
+            r.extend(tx.recv_bulk().map(|i| i &gt;&gt; <span class="number">1</span>));
+            std::thread::yield_now();
+        }
+        <span class="macro">assert_eq!</span>(r, items);
+    });
+    cx.spawn(|| {
+        <span class="kw">let </span><span class="kw-2">mut </span>n = <span class="number">0</span>;
+        <span class="kw">loop </span>{
+            <span class="comment">// 接受请求，处理之，并将响应送回
+            </span><span class="kw">while let </span><span class="prelude-val">Some</span>(i) = rx.recv() {
+                rx.send(i &lt;&lt; <span class="number">1</span>).unwrap();
+                n += <span class="number">1</span>;
+            }
+            <span class="kw">if </span>n == items.len() {
+                <span class="kw">break</span>;
+            }
+            std::thread::yield_now();
+        }
+    });
+});</code></pre></div>
+<h3 id="对等通信"><a class="doc-anchor" href="#对等通信">§</a>对等通信</h3>
+<p>尽管 <a href="struct.UringA.html" title="struct evering::uring::UringA"><code>UringA</code></a> 和 <a href="struct.UringB.html" title="struct evering::uring::UringB"><code>UringB</code></a> 可以用来建立对等通信，但如果一方的角色无法在编译期间确定，二者就无法应对了．<a href="enum.UringEither.html" title="enum evering::uring::UringEither"><code>UringEither</code></a> 允许在运行时决定某一方的角色，但它要求通信双方的消息类型是一致的．以下演示了如何用它建立对等通信，</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>items = <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>];
+<span class="kw">let </span>worker = |<span class="kw-2">mut </span>p: UringEither&lt;i32&gt;| {
+    <span class="comment">//               ^ UringA 和 UringB 是两个不同的类型
+    </span>p.send_bulk(items.iter().copied());
+    <span class="kw">let </span><span class="kw-2">mut </span>r = <span class="macro">vec!</span>[];
+    <span class="kw">while </span>r.len() != items.len() {
+        r.extend(p.recv_bulk());
+        std::thread::yield_now();
+    }
+    <span class="macro">assert_eq!</span>(r, items);
+};
+<span class="kw">let </span>(pa, pb) = Builder::&lt;i32, i32&gt;::new().build();
+std::thread::scope(|cx| {
+    cx.spawn(|| worker(UringEither::A(pa)));
+    cx.spawn(|| worker(UringEither::B(pb)));
+});</code></pre></div>
+<h3 id="内存共享"><a class="doc-anchor" href="#内存共享">§</a>内存共享</h3>
+<p>在不同进程之间通过共享内存来建立连接时，分配给 <a href="trait.Uring.html" title="trait evering::uring::Uring"><code>Uring</code></a> 的内存对双方来说可能是不同的地址．这时就需要通过 <a href="struct.RawUring.html" title="struct evering::uring::RawUring"><code>RawUring</code></a> 来手动处理这一差异．<a href="trait.Uring.html" title="trait evering::uring::Uring"><code>Uring</code></a> 可以和 <a href="struct.RawUring.html" title="struct evering::uring::RawUring"><code>RawUring</code></a> 相互转换，而后者暴露了必要的接口以便控制底层的内存细节．</p>
+<p>以下展示了如何手动管理 <a href="trait.Uring.html" title="trait evering::uring::Uring"><code>Uring</code></a> 的内存分配，</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>header = Builder::&lt;i32, i32&gt;::new().build_header();
+<span class="comment">//                                      ^ 仅初始化 Header
+// 随后手动分配内存，也可以从已分配的内存中构造 RawUring
+</span><span class="kw">let </span>buf_a = alloc_buffer(header.size_a());
+<span class="kw">let </span>buf_b = alloc_buffer(header.size_b());
+<span class="kw">let </span>header = alloc_header(header);
+<span class="kw">let </span>build_raw = || { <span class="comment">// &lt;- RawUring 是非 Clone 的
+    </span><span class="kw">let </span><span class="kw-2">mut </span>raw = RawUring::dangling();
+    raw.header = header;
+    raw.buf_a = buf_a;
+    raw.buf_b = buf_b;
+    raw
+};
+<span class="kw">let </span>(pa, pb);
+<span class="comment">// SAFETY: 我们可以确保内存是有效的
+</span><span class="kw">unsafe </span>{
+    pa = UringA::from_raw(build_raw());
+    pb = UringB::from_raw(build_raw());
+}
+<span class="macro">assert!</span>(pa.is_connected() &amp;&amp; pb.is_connected());
+<span class="comment">// 对于自定义分配的内存，我们必须手动释放
+</span><span class="macro">assert!</span>(pa.dispose_raw().is_err());
+<span class="comment">//                       ^ 当任一端存活时，内存不会被释放
+</span><span class="kw">let </span>raw = pb.dispose_raw().unwrap();
+<span class="comment">//                         ^ 此时可以安全的释放内存
+</span>dealloc_uring(raw);</code></pre></div>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Builder.html" title="struct evering::uring::Builder">Builder</a></dt><dt><a class="struct" href="struct.DisposeError.html" title="struct evering::uring::DisposeError">Dispose<wbr>Error</a></dt><dt><a class="struct" href="struct.Drain.html" title="struct evering::uring::Drain">Drain</a></dt><dt><a class="struct" href="struct.Header.html" title="struct evering::uring::Header">Header</a></dt><dt><a class="struct" href="struct.Queue.html" title="struct evering::uring::Queue">Queue</a></dt><dt><a class="struct" href="struct.RawUring.html" title="struct evering::uring::RawUring">RawUring</a></dt><dt><a class="struct" href="struct.UringA.html" title="struct evering::uring::UringA">UringA</a></dt><dt><a class="struct" href="struct.UringB.html" title="struct evering::uring::UringB">UringB</a></dt></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.UringEither.html" title="enum evering::uring::UringEither">Uring<wbr>Either</a></dt></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.Uring.html" title="trait evering::uring::Uring">Uring</a></dt></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.Receiver.html" title="type evering::uring::Receiver">Receiver</a></dt><dt><a class="type" href="type.Sender.html" title="type evering::uring::Sender">Sender</a></dt></dl></section></div></main></body></html>
