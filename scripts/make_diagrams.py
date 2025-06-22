@@ -126,13 +126,14 @@ def make_diagram(reports: list[Report]):
         group = groups.setdefault(report.group, [])
         group.append(report)
 
-    first = next(iter(groups.values()))
-    indices = [r.size for r in first]
-    df = pd.DataFrame(index=indices)
-
+    df = pd.DataFrame()
     for g, group in groups.items():
         group.sort(key=lambda r: r.idx)
         df[g] = [int(r.estimates[args.estimate]["point_estimate"]) for r in group]
+
+    first = next(iter(groups.values()))
+    index = [r.size for r in first]
+    df.index = pd.Index(index)
 
     if args.show_only:
         print(df)
