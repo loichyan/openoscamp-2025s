@@ -101,7 +101,7 @@ def parse_reports(dir: str) -> list[Report]:
     return reports
 
 
-def make_figure(df: pd.DataFrame, title: str, unit: str = "ns"):
+def make_figure(df: pd.DataFrame, id: str, unit: str = "ns"):
     match unit:
         case "ns":
             pass
@@ -116,8 +116,8 @@ def make_figure(df: pd.DataFrame, title: str, unit: str = "ns"):
     plt.xlabel("Buffer Size")
     plt.ylabel(f"Measurement ({unit})")
 
-    plt.title(title)
-    plt.savefig(P.join(args.outdir, f"{title}.{args.format}"))
+    plt.title(id)
+    plt.savefig(P.join(args.outdir, f"{args.bench}_{args.estimate}_{id}.{args.format}"))
 
 
 def make_diagram(reports: list[Report]):
@@ -142,10 +142,10 @@ def make_diagram(reports: list[Report]):
     mid_l = int((len(first) - 5) / 2)
     mid_r = len(first) - mid_l
 
-    make_figure(df[0:5], f"{args.bench}_first_5")
-    make_figure(df[mid_l:mid_r], f"{args.bench}_mid_5", unit="us")
-    make_figure(df[-5:], f"{args.bench}_last_5", unit="us")
-    make_figure(df[:], f"{args.bench}_all", unit="us")
+    make_figure(df[0:5], "first_5")
+    make_figure(df[mid_l:mid_r], "mid_5", unit="us")
+    make_figure(df[-5:], "last_5", unit="us")
+    make_figure(df[:], "all", unit="us")
 
 
 def main():
