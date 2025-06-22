@@ -1,9 +1,11 @@
+extern crate evering;
+
 use std::ffi::CString;
 use std::mem::MaybeUninit;
 use std::os::fd::AsFd;
 use std::sync::Once;
 
-use ::evering::uring::Uring;
+use evering::uring::Uring;
 use evering_ipc::*;
 use tokio::task::spawn_local;
 
@@ -85,7 +87,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
             }
 
             let rx = evering_ipc::Runtime::new(sq);
-            block_on(rx.run_on(async {
+            tokio_block_on_current(rx.run_on(async {
                 let tasks = std::iter::repeat_with(|| async move {
                     let mut rbuf = ShmBox::new_uninit_slice(bufsize);
                     for _ in 0..(iters / CONCURRENCY) {

@@ -16,11 +16,11 @@
 
 #[macro_use]
 mod utils;
-mod epoll;
 mod evering;
-mod io_uring;
-mod monoio;
+mod monoio_uring;
 mod shmipc;
+mod tokio_epoll;
+mod tokio_uring;
 
 use std::hint::black_box;
 use std::path::Path;
@@ -62,7 +62,7 @@ const fn shmsize(bufsize: usize) -> usize {
     }
 }
 
-fn block_on<T>(fut: impl Future<Output = T>) -> T {
+fn tokio_block_on_current<T>(fut: impl Future<Output = T>) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -99,7 +99,7 @@ fn groups(c: &mut Criterion) {
     let mut g = c.benchmark_group("ipc_benchmark");
     for (i, bufsize) in BUFSIZES.iter().copied().enumerate() {
         let bsize = ByteSize::b(bufsize as u64).display().iec_short();
-        for (name, f) in benches![epoll, evering, io_uring, shmipc, monoio] {
+        for (name, f) in benches![evering, monoio_uring, shmipc, tokio_epoll, tokio_uring] {
             let id = format!("ipc_benchmark_{i:02}_{bsize:.0}_{name}");
             g.bench_function(&id, |b| {
                 b.iter_custom(|iters| f(&id, iters as usize, bufsize))

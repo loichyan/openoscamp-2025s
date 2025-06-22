@@ -1,3 +1,5 @@
+extern crate tokio_uring;
+
 use tokio_uring::BufResult;
 use tokio_uring::buf::BoundedBuf;
 use tokio_uring::net::{UnixListener, UnixStream};

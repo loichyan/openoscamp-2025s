@@ -1,8 +1,10 @@
+extern crate shmipc;
+
 use std::os::unix::net::SocketAddr;
 
-use ::shmipc::config::SizePercentPair;
-use ::shmipc::consts::MemMapType;
-use ::shmipc::{
+use shmipc::config::SizePercentPair;
+use shmipc::consts::MemMapType;
+use shmipc::{
     AsyncReadShm, AsyncWriteShm, Error, Listener, SessionManager, SessionManagerConfig, Stream,
 };
 use tokio::task::spawn_local;
@@ -19,7 +21,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
 
     let sockaddr = SocketAddr::from_pathname(&sockpath).unwrap();
     let sm_config = {
-        let mut config = ::shmipc::config::Config::new();
+        let mut config = shmipc::config::Config::new();
 
         config.mem_map_type = MemMapType::MemMapTypeMemFd;
         config.share_memory_buffer_cap = shmsize(bufsize) as u32;
@@ -55,7 +57,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         // Server
         cx.spawn(|| {
             let resp = make_resp(bufsize);
-            block_on(async {
+            tokio_block_on_current(async {
                 let mut listener = Listener::new(sockaddr.clone(), sm_config.config().clone())
                     .await
                     .unwrap();
@@ -96,7 +98,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         });
         // Client
         cx.spawn(|| {
-            block_on(async {
+            tokio_block_on_current(async {
                 started_rx.await.unwrap();
                 let client = SessionManager::new(sm_config.clone(), sockaddr.clone())
                     .await
