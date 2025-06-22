@@ -91,7 +91,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                     for _ in 0..(iters / CONCURRENCY) {
                         let (pong, rbuf_init) = evering_ipc::op::ping(PING, rbuf).await;
                         assert_eq!(pong, PONG);
-                        assert!(check_resp(bufsize, &rbuf_init));
+                        check_resp(bufsize, &rbuf_init);
                         rbuf = rbuf_init.into_uninit();
                     }
                 })

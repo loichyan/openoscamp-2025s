@@ -113,7 +113,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                             let pong = read_i32(conn).await.unwrap();
                             assert_eq!(pong, PONG);
                             let resp = conn.read_bytes(bufsize).await.unwrap();
-                            assert!(check_resp(bufsize, &resp));
+                            check_resp(bufsize, &resp);
                             conn.release_read_and_reuse();
                         }
                         conn.close().await.unwrap();

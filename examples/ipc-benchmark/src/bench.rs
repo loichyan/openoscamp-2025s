@@ -73,9 +73,14 @@ fn make_shmid(pref: &str) -> String {
         .collect()
 }
 
-fn check_resp(bufsize: usize, resp: &[u8]) -> bool {
+fn check_resp(bufsize: usize, resp: &[u8]) {
     assert_eq!(resp.len(), bufsize);
-    resp.iter().copied().map(black_box).all(|b| b == BUFVAL)
+    // Pick a few bytes to check. Checking all bytes is meaningless and will
+    // significantly slow down the benchmark.
+    for _ in 0..(32.min(bufsize)) {
+        let b = *fastrand::choice(resp).unwrap();
+        assert_eq!(black_box(b), BUFVAL);
+    }
 }
 
 /// Returns arbitrary response data.
