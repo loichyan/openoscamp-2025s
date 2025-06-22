@@ -107,6 +107,7 @@ fn groups(c: &mut Criterion) {
 
 criterion_group!(
     name = ipc_benchmark;
+    // TODO: increase sample size
     config = Criterion::default().sample_size(50).measurement_time(Duration::from_secs(30));
     targets = groups
 );

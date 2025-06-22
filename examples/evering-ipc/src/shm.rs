@@ -17,6 +17,27 @@ use rlsf::Tlsf;
 pub use self::boxed::{ShmBox, init_client, init_server};
 use crate::Result;
 
+/// [`ShmHeader`] contains necessary metadata of a shared memory region.
+///
+/// Memory layout of the entire shared memory is illustrated as below,
+///
+/// ```svgbob
+/// .-----------------------------------------------------------------------------.
+/// |                   |               |                   |                     |
+/// | [1] uring offsets | [2] allocator | [3] uring buffers | [4] free memory ... |
+/// | ^                 |               |                   |                   ^ |
+/// '-|-------------------------------------------------------------------------|-'
+///   '-- start of the shared memory (page aligned)                             |
+///                                                  end of the shared memory --'
+/// ```
+///
+/// 1. Uring offsets are used to build [`RawUring`].
+/// 2. Each shared memory region comes with one single-thread allocator.
+///    Typically, it will be taken by the client after initialization.
+/// 3. The submitted requests and responses are stored in these buffers.
+/// 4. The rest of the shared memory are managed by the allocator. [`ShmBox`]
+///    provides similar APIS to [`Box`], but it is allocated and deallocated by
+///    the shared memory [`Allocator`] instead of the global allocator.
 pub struct ShmHeader<A = crate::op::Sqe, B = crate::op::Rqe, Ext = ()> {
     header: UringHeader<Ext>,
     // Relative offsets of uring buffers
