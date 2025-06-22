@@ -12,8 +12,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
-            static PONG_BYTES: &[u8] = PONG.to_be_bytes().as_slice();
-            let resp = make_resp(bufsize);
+            let respdata = make_respdata(bufsize);
 
             monoio::start::<monoio::IoUringDriver, _>(async {
                 let listener = UnixListener::bind_with_config(
@@ -24,18 +23,22 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                 started_tx.send(()).unwrap();
 
                 let worker = |mut conn: UnixStream| {
-                    // `pong` and `resp` will never be written actually, but we
+                    // `pongdata` and `respdata` will never be written actually, but we
                     // need to transfer the ownship between this task and the
                     // io_uring driver.
-                    let mut pong = PONG_BYTES;
-                    let mut resp = resp.clone();
+                    let mut pongdata = PONGDATA;
+                    let mut respdata = respdata.clone();
+                    let mut req = vec![0; bufsize];
                     async move {
                         loop {
                             match conn.read_i32().await {
                                 Ok(ping) => {
                                     assert_eq!(ping, PING);
-                                    with!(pong = conn.write_all(pong).await).unwrap();
-                                    with!(resp = conn.write_all(resp).await).unwrap();
+                                    with!(req = conn.read_exact(req).await).unwrap(); // read request
+                                    check_reqdata(bufsize, &req);
+
+                                    with!(pongdata = conn.write_all(pongdata).await).unwrap();
+                                    with!(respdata = conn.write_all(respdata).await).unwrap(); // write response
                                 },
                                 Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
                                     return;
@@ -55,23 +58,25 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         });
         // Client
         cx.spawn(|| {
-            static PING_BYTES: &[u8] = PING.to_be_bytes().as_slice();
+            let reqdata = make_reqdata(bufsize);
 
             monoio::start::<monoio::IoUringDriver, _>(async {
                 started_rx.await.unwrap();
                 let tasks = std::iter::repeat_with(|| {
                     let sock = sock.clone();
-                    let mut ping = PING_BYTES;
+                    let mut pingdata = PINGDATA;
+                    let mut reqdata = reqdata.clone();
                     let mut resp = vec![0; bufsize];
                     async move {
                         let mut conn = UnixStream::connect(sock).await.unwrap();
                         for _ in 0..(iters / CONCURRENCY) {
-                            with!(ping = conn.write_all(ping).await).unwrap();
+                            with!(pingdata = conn.write_all(pingdata).await).unwrap();
+                            with!(reqdata = conn.write_all(reqdata).await).unwrap(); // write request
 
                             let pong = conn.read_i32().await.unwrap();
                             assert_eq!(pong, PONG);
-                            with!(resp = conn.read_exact(resp).await).unwrap();
-                            check_resp(bufsize, &resp);
+                            with!(resp = conn.read_exact(resp).await).unwrap(); // read response
+                            check_respdata(bufsize, &resp);
                         }
                     }
                 })

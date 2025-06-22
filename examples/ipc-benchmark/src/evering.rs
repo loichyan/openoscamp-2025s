@@ -22,10 +22,11 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
 
     let mut elapsed = Duration::ZERO;
     let started = Once::new();
+
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
-            let resp = black_box(vec![MaybeUninit::new(BUFVAL); bufsize]);
+            let respdata = make_respdata(bufsize);
 
             let (shm, mut rq);
             unsafe {
@@ -39,6 +40,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
             }
             started.call_once(|| {});
 
+            // TODO: use async runtime
             let mut pending = None::<Rqe>;
             'outer: loop {
                 if let Some(p) = pending.take() {
@@ -59,10 +61,13 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                             .unwrap();
                             break 'outer;
                         },
-                        SqeData::Ping { ping, buf } => {
+                        SqeData::Ping { ping, req, resp } => {
                             assert_eq!(ping, PING);
-                            assert_eq!(buf.as_ptr().len(), bufsize);
-                            unsafe { buf.as_ptr().as_mut().copy_from_slice(&resp) }
+                            unsafe {
+                                check_reqdata(bufsize, req.as_ptr().as_ref()); // read request
+                                let src = (&raw const *respdata) as *const [MaybeUninit<u8>];
+                                resp.as_ptr().as_mut().copy_from_slice(&*src); // write response
+                            }
                             RqeData::Pong { pong: PONG }
                         },
                     };
@@ -78,6 +83,8 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         });
         // Client
         cx.spawn(|| {
+            let reqdata = make_reqdata(bufsize);
+
             started.wait();
             let (shm, sq);
             unsafe {
@@ -88,13 +95,23 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
 
             let rx = evering_ipc::Runtime::new(sq);
             tokio_block_on_current(rx.run_on(async {
-                let tasks = std::iter::repeat_with(|| async move {
-                    let mut rbuf = ShmBox::new_uninit_slice(bufsize);
-                    for _ in 0..(iters / CONCURRENCY) {
-                        let (pong, rbuf_init) = evering_ipc::op::ping(PING, rbuf).await;
-                        assert_eq!(pong, PONG);
-                        check_resp(bufsize, &rbuf_init);
-                        rbuf = rbuf_init.into_uninit();
+                let tasks = std::iter::repeat_with(|| {
+                    let reqdata = reqdata.clone();
+                    async move {
+                        let mut req = { ShmBox::new_slice_copied(&reqdata) }; // write request
+                        let mut resp = ShmBox::new_slice_uninit(bufsize);
+
+                        for _ in 0..(iters / CONCURRENCY) {
+                            let evering_ipc::op::Pong {
+                                pong,
+                                req: req_ret,
+                                resp: resp_ret,
+                            } = evering_ipc::op::ping(PING, req, resp).await;
+                            assert_eq!(pong, PONG);
+                            check_respdata(bufsize, &resp_ret); // read response
+                            req = req_ret;
+                            resp = resp_ret.into_uninit();
+                        }
                     }
                 })
                 .map(spawn_local)

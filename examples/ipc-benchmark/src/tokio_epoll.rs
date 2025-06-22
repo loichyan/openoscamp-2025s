@@ -13,20 +13,24 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
-            let resp = make_resp(bufsize);
+            let respdata = make_respdata(bufsize);
 
             tokio_block_on_current(async {
                 let listener = UnixListener::bind(&sock).unwrap();
                 started_tx.send(()).unwrap();
                 let worker = |mut conn: UnixStream| {
-                    let resp = resp.clone();
+                    let respdata = respdata.clone();
+                    let mut req = vec![0; bufsize];
                     async move {
                         loop {
                             match conn.read_i32().await {
                                 Ok(ping) => {
                                     assert_eq!(ping, PING);
+                                    conn.read_exact(&mut req).await.unwrap(); // read request
+                                    check_reqdata(bufsize, &req);
+
                                     conn.write_i32(PONG).await.unwrap();
-                                    conn.write_all(&resp).await.unwrap();
+                                    conn.write_all(&respdata).await.unwrap(); // write response
                                     conn.flush().await.unwrap();
                                 },
                                 Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
@@ -50,21 +54,25 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         });
         // Client
         cx.spawn(|| {
+            let reqdata = make_reqdata(bufsize);
+
             tokio_block_on_current(async {
                 started_rx.await.unwrap();
                 let tasks = std::iter::repeat_with(|| {
                     let sock = sock.clone();
+                    let reqdata = reqdata.clone();
                     let mut resp = vec![0; bufsize];
                     async move {
                         let mut conn = UnixStream::connect(sock).await.unwrap();
                         for _ in 0..(iters / CONCURRENCY) {
                             conn.write_i32(PING).await.unwrap();
+                            conn.write_all(&reqdata).await.unwrap(); // write request
                             conn.flush().await.unwrap();
 
                             let pong = conn.read_i32().await.unwrap();
                             assert_eq!(pong, PONG);
-                            conn.read_exact(&mut resp).await.unwrap();
-                            check_resp(bufsize, &resp);
+                            conn.read_exact(&mut resp).await.unwrap(); // read response
+                            check_respdata(bufsize, &resp);
                         }
                     }
                 })

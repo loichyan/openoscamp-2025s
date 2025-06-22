@@ -145,17 +145,20 @@ fn start_client(shm: &'static ShmHeader) -> bool {
     rt.block_on(async {
         let tasks = (0..)
             .map(|i| async move {
-                let delay = fastrand::u64(50..500);
-                tracing::info!("requested ping({i}), delay={delay:?}ms");
+                let ping = fastrand::i32(..);
+                let mut req = ShmBox::new_slice_filled(0, fastrand::usize(8..=32));
+                let resp = ShmBox::new_slice_uninit(fastrand::usize(8..=32));
+                for c in req.iter_mut() {
+                    *c = fastrand::alphanumeric() as u32 as u8;
+                }
+                tracing::info!("requested({i}) ping={ping:x}, req={req}", req = bstr(&req));
 
-                let buf = ShmBox::new_uninit_slice(fastrand::usize(8..=32));
                 let now = std::time::Instant::now();
-                let (pong, buf) = op::ping(fastrand::i32(..), buf).await;
+                let op::Pong { pong, req: _, resp } = op::ping(fastrand::i32(..), req, resp).await;
                 let elapsed = now.elapsed().as_millis();
-
-                let bstr = std::str::from_utf8(&buf).unwrap();
                 tracing::info!(
-                    "responded pong({i}), elapsed={elapsed}ms, pong={pong:x}, buf={bstr}"
+                    "responded({i}) pong={pong:x}, resp={resp}, elapsed={elapsed}ms",
+                    resp = bstr(&resp),
                 );
             })
             .map(RuntimeHandle::spawn)
@@ -178,29 +181,34 @@ fn start_server(shm: &'static ShmHeader) -> bool {
     tracing::info!("started server, connected={}", rq.is_connected());
 
     let mut local_queue = Vec::new();
+    let mut i = 0;
     loop {
         let mut should_exit = false;
         if let Some(Sqe { id, data }) = rq.recv() {
-            tracing::info!("accepted request, data={data:x?}");
             let data = match data {
                 SqeData::Exit => {
                     should_exit = true;
                     RqeData::Exited
                 },
-                SqeData::Ping { ping, buf } => {
+                SqeData::Ping { ping, req, resp } => {
                     let delay = (ping as u64 % 450) + 50;
-                    std::thread::sleep(Duration::from_millis(delay));
                     unsafe {
-                        let mut buf = buf.as_ptr();
-                        for c in buf.as_mut().iter_mut() {
+                        let req = req.as_ptr().as_ref();
+                        tracing::info!("accepted({i}) ping={ping:x}, req={req}", req = bstr(req));
+
+                        let resp = resp.as_ptr().as_mut();
+                        for c in resp.iter_mut() {
                             c.write(fastrand::alphanumeric() as u32 as u8);
                         }
                     }
+
+                    std::thread::sleep(Duration::from_millis(delay));
                     RqeData::Pong {
                         pong: fastrand::i32(..),
                     }
                 },
             };
+            i += 1;
             local_queue.push(Rqe { id, data });
         }
 
@@ -222,4 +230,8 @@ fn start_server(shm: &'static ShmHeader) -> bool {
     }
 
     rq.dispose_raw().is_ok()
+}
+
+fn bstr(bytes: &[u8]) -> &str {
+    std::str::from_utf8(bytes).unwrap()
 }

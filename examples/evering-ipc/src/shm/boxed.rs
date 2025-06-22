@@ -53,11 +53,18 @@ impl<T> ShmBox<MaybeUninit<T>> {
 }
 
 impl<T> ShmBox<[T]> {
-    pub fn new_copied(src: &[T]) -> Self
+    pub fn new_slice_copied(src: &[T]) -> Self
     where
         T: Copy,
     {
-        unsafe { Self::from_raw(AloHandle::get().alloc_copied_slice(src)) }
+        unsafe { Self::from_raw(AloHandle::get().alloc_slice_copied(src)) }
+    }
+
+    pub fn new_slice_filled(val: T, n: usize) -> Self
+    where
+        T: Copy,
+    {
+        unsafe { Self::from_raw(AloHandle::get().alloc_slice_filled(val, n)) }
     }
 
     pub fn into_uninit(self) -> ShmBox<[MaybeUninit<T>]> {
@@ -69,8 +76,8 @@ impl<T> ShmBox<[T]> {
 }
 
 impl<T> ShmBox<[MaybeUninit<T>]> {
-    pub fn new_uninit_slice(n: usize) -> Self {
-        unsafe { Self::from_raw(AloHandle::get().alloc_uninit_slice(n)) }
+    pub fn new_slice_uninit(n: usize) -> Self {
+        unsafe { Self::from_raw(AloHandle::get().alloc_slice_uninit(n)) }
     }
 
     /// # Safety

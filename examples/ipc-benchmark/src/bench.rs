@@ -49,8 +49,9 @@ const CONCURRENCY: usize = 200;
 // Fixed constants
 const PING: i32 = 1;
 const PONG: i32 = 2;
-// Black boxed to mock runtime values
-const BUFVAL: u8 = black_box(b'X');
+
+static PONGDATA: &[u8] = PONG.to_be_bytes().as_slice();
+static PINGDATA: &[u8] = PING.to_be_bytes().as_slice();
 
 type BenchFn = fn(&str, usize, usize) -> Duration;
 
@@ -76,19 +77,36 @@ fn make_shmid(pref: &str) -> String {
         .collect()
 }
 
-fn check_resp(bufsize: usize, resp: &[u8]) {
+fn check_reqdata(bufsize: usize, req: &[u8]) {
+    check_bufdata(bufsize, req, b'S');
+}
+
+fn make_reqdata(bufsize: usize) -> Bytes {
+    make_bufdata(bufsize, b'S')
+}
+
+fn make_respdata(bufsize: usize) -> Bytes {
+    make_bufdata(bufsize, b'R')
+}
+
+fn check_respdata(bufsize: usize, resp: &[u8]) {
+    check_bufdata(bufsize, resp, b'R');
+}
+
+fn check_bufdata(bufsize: usize, resp: &[u8], expected: u8) {
     assert_eq!(resp.len(), bufsize);
     // Pick a few bytes to check. Checking all bytes is meaningless and will
     // significantly slow down the benchmark.
     for _ in 0..(32.min(bufsize)) {
         let b = *fastrand::choice(resp).unwrap();
-        assert_eq!(black_box(b), BUFVAL);
+        assert_eq!(black_box(b), black_box(expected));
     }
 }
 
 /// Returns arbitrary response data.
-fn make_resp(bufsize: usize) -> Bytes {
-    black_box(Bytes::from(vec![BUFVAL; bufsize]))
+fn make_bufdata(bufsize: usize, expected: u8) -> Bytes {
+    // Black boxed to mock runtime values
+    black_box(Bytes::from(vec![black_box(expected); bufsize]))
 }
 
 fn groups(c: &mut Criterion) {

@@ -195,16 +195,24 @@ impl Allocator {
         unsafe { self.alloc_raw(Layout::new::<T>()).cast() }
     }
 
-    pub fn alloc_copied_slice<T: Copy>(&self, src: &[T]) -> NonNull<[T]> {
+    pub fn alloc_slice_copied<T: Copy>(&self, src: &[T]) -> NonNull<[T]> {
         unsafe {
-            let mut ptr = self.alloc_uninit_slice(src.len());
+            let mut ptr = self.alloc_slice_uninit(src.len());
             let src_uninit = src as *const [T] as *const [MaybeUninit<T>];
             ptr.as_mut().copy_from_slice(&*src_uninit);
             NonNull::new_unchecked(ptr.as_ptr() as *mut [T])
         }
     }
 
-    pub fn alloc_uninit_slice<T>(&self, n: usize) -> NonNull<[MaybeUninit<T>]> {
+    pub fn alloc_slice_filled<T: Copy>(&self, val: T, n: usize) -> NonNull<[T]> {
+        unsafe {
+            let mut ptr = self.alloc_slice_uninit(n);
+            ptr.as_mut().fill(MaybeUninit::new(val));
+            NonNull::new_unchecked(ptr.as_ptr() as *mut [T])
+        }
+    }
+
+    pub fn alloc_slice_uninit<T>(&self, n: usize) -> NonNull<[MaybeUninit<T>]> {
         unsafe {
             let data = self.alloc_raw(Layout::array::<T>(n).unwrap());
             NonNull::slice_from_raw_parts(data.cast(), n)

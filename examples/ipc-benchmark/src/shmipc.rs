@@ -56,24 +56,28 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
     std::thread::scope(|cx| {
         // Server
         cx.spawn(|| {
-            let resp = make_resp(bufsize);
+            let respdata = make_respdata(bufsize);
+
             tokio_block_on_current(async {
                 let mut listener = Listener::new(sockaddr.clone(), sm_config.config().clone())
                     .await
                     .unwrap();
                 started_tx.send(()).unwrap();
+
                 let worker = |mut conn: Stream| {
-                    let resp = resp.clone();
+                    let respdata = respdata.clone();
                     async move {
                         let conn = &mut conn;
                         loop {
                             match read_i32(conn).await {
                                 Ok(ping) => {
                                     assert_eq!(ping, PING);
+                                    let req = conn.read_bytes(bufsize).await.unwrap(); // read request
+                                    check_reqdata(bufsize, &req);
                                     conn.release_read_and_reuse();
 
                                     write_i32(conn, PONG).unwrap();
-                                    write_all(conn, &resp).unwrap();
+                                    write_all(conn, &respdata).unwrap(); // write response
                                     must_flush(conn, false).await.unwrap();
                                 },
                                 Err(Error::StreamClosed | Error::EndOfStream) => break,
@@ -98,24 +102,29 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
         });
         // Client
         cx.spawn(|| {
+            let reqdata = make_reqdata(bufsize);
+
             tokio_block_on_current(async {
                 started_rx.await.unwrap();
                 let client = SessionManager::new(sm_config.clone(), sockaddr.clone())
                     .await
                     .unwrap();
+
                 let tasks = std::iter::repeat_with(|| {
                     let client = client.clone();
+                    let reqdata = reqdata.clone();
                     async move {
                         let mut conn = client.get_stream().unwrap();
                         let conn = &mut conn;
                         for _ in 0..(iters / CONCURRENCY) {
                             write_i32(conn, PING).unwrap();
+                            write_all(conn, &reqdata).unwrap(); // write request
                             must_flush(conn, false).await.unwrap();
 
                             let pong = read_i32(conn).await.unwrap();
                             assert_eq!(pong, PONG);
-                            let resp = conn.read_bytes(bufsize).await.unwrap();
-                            check_resp(bufsize, &resp);
+                            let resp = conn.read_bytes(bufsize).await.unwrap(); // read response
+                            check_respdata(bufsize, &resp);
                             conn.release_read_and_reuse();
                         }
                         conn.close().await.unwrap();

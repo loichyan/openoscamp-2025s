@@ -23,7 +23,8 @@ pub enum SqeData {
     Exit,
     Ping {
         ping: i32,
-        buf: ShmToken<[MaybeUninit<u8>]>,
+        req: ShmToken<[u8]>,
+        resp: ShmToken<[MaybeUninit<u8>]>,
     },
 }
 
@@ -34,28 +35,39 @@ pub enum RqeData {
 }
 
 struct Ping {
-    buf: ShmBox<[MaybeUninit<u8>]>,
+    req: ShmBox<[u8]>,
+    resp: ShmBox<[MaybeUninit<u8>]>,
+}
+pub struct Pong {
+    pub pong: i32,
+    pub req: ShmBox<[u8]>,
+    pub resp: ShmBox<[u8]>,
 }
 unsafe impl Completable for Ping {
-    type Output = (i32, ShmBox<[u8]>);
+    type Output = Pong;
     type Driver = RuntimeHandle;
     fn complete(self, _drv: &RuntimeHandle, payload: RqeData) -> Self::Output {
         let RqeData::Pong { pong } = payload else {
             unreachable!()
         };
-        (pong, unsafe { self.buf.assume_init() })
+        Pong {
+            pong,
+            req: self.req,
+            resp: unsafe { self.resp.assume_init() },
+        }
     }
     fn cancel(self, _drv: &RuntimeHandle) -> Cancellation {
-        Cancellation::recycle(self.buf)
+        Cancellation::recycle((self.req, self.resp))
     }
 }
 
-pub async fn ping(ping: i32, buf: ShmBox<[MaybeUninit<u8>]>) -> (i32, ShmBox<[u8]>) {
-    RuntimeHandle::submit(Ping { buf }, |id, p| Sqe {
+pub async fn ping(ping: i32, req: ShmBox<[u8]>, resp: ShmBox<[MaybeUninit<u8>]>) -> Pong {
+    RuntimeHandle::submit(Ping { req, resp }, |id, p| Sqe {
         id,
         data: SqeData::Ping {
             ping,
-            buf: ShmBox::as_shm(&p.buf),
+            req: ShmBox::as_shm(&p.req),
+            resp: ShmBox::as_shm(&p.resp),
         },
     })
     .await
