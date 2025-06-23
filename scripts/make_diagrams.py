@@ -116,8 +116,9 @@ def make_figure(df: pd.DataFrame, id: str, unit: str = "ns"):
     plt.xlabel("Buffer Size")
     plt.ylabel(f"Measurement ({unit})")
 
-    plt.title(id)
-    plt.savefig(P.join(args.outdir, f"{args.bench}_{args.estimate}_{id}.{args.format}"))
+    title = f"{args.bench}_{args.estimate}_{id}.{args.format}"
+    plt.title(title)
+    plt.savefig(P.join(args.outdir, title))
 
 
 def make_diagram(reports: list[Report]):
