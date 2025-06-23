@@ -56,10 +56,12 @@ static PINGDATA: &[u8] = PING.to_be_bytes().as_slice();
 type BenchFn = fn(&str, usize, usize) -> Duration;
 
 const fn shmsize(bufsize: usize) -> usize {
-    if bufsize < 4 << 20 {
+    if bufsize < (1 << 20) {
         256 << 20
-    } else {
+    } else if bufsize < (4 << 20) {
         1 << 30
+    } else {
+        2 << 30
     }
 }
 
@@ -128,8 +130,7 @@ fn groups(c: &mut Criterion) {
 
 criterion_group!(
     name = ipc_benchmark;
-    // TODO: increase sample size
-    config = Criterion::default().sample_size(50).measurement_time(Duration::from_secs(30));
+    config = Criterion::default().sample_size(100).measurement_time(Duration::from_secs(30));
     targets = groups
 );
 criterion_main!(ipc_benchmark);

@@ -1,4 +1,4 @@
-use monoio::io::{AsyncReadRentExt, AsyncWriteRentExt};
+use monoio::io::{AsyncReadRentExt, AsyncWriteRent, AsyncWriteRentExt};
 use monoio::net::{ListenerOpts, UnixListener, UnixStream};
 
 use super::*;
@@ -41,6 +41,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                                     with!(respdata = conn.write_all(respdata).await).unwrap(); // write response
                                 },
                                 Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                                    conn.shutdown().await.unwrap();
                                     return;
                                 },
                                 Err(e) => panic!("{e}"),
@@ -78,6 +79,7 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                             with!(resp = conn.read_exact(resp).await).unwrap(); // read response
                             check_respdata(bufsize, &resp);
                         }
+                        conn.shutdown().await.unwrap();
                     }
                 })
                 .map(monoio::spawn)

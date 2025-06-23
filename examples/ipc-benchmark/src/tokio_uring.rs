@@ -107,6 +107,8 @@ pub fn bench(id: &str, iters: usize, bufsize: usize) -> Duration {
                 }
                 elapsed = now.elapsed();
                 exited_tx.send(()).unwrap();
+
+                pool.unregister().unwrap();
             });
         });
     });
